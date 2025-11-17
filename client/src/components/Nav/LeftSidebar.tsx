@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, useMemo, useRef } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -14,7 +14,7 @@ import type { ConversationListResponse } from 'librechat-data-provider';
 
 interface LeftSidebarProps {
   // Props for conversation list
-  conversationData?: any;
+  conversationData?: { pages: ConversationListResponse[] };
   moveToTop?: () => void;
   toggleNavVisible?: () => void;
   containerRef?: React.RefObject<HTMLDivElement>;
@@ -89,6 +89,13 @@ const LeftSidebar = memo(
     const [selectedProject, setSelectedProject] = useState('default');
     const [selectedDataset, setSelectedDataset] = useState('household');
     const [selectedGeography, setSelectedGeography] = useState('india');
+
+    const listRef = useRef<any>(null);
+
+    // Flatten conversations from pages structure
+    const conversations = useMemo(() => {
+      return conversationData ? conversationData.pages.flatMap((page) => page.conversations) : [];
+    }, [conversationData]);
 
     return (
       <div className="flex h-full flex-col bg-gray-50">
@@ -233,11 +240,15 @@ const LeftSidebar = memo(
 
           {/* Chat History Section */}
           <CollapsibleSection title="Chat History" defaultOpen={true}>
-            {conversationData && (
+            {conversations.length > 0 && (
               <Conversations
-                conversations={conversationData}
-                moveToTop={moveToTop}
-                toggleNavVisible={toggleNavVisible}
+                conversations={conversations}
+                moveToTop={moveToTop || (() => {})}
+                toggleNav={toggleNavVisible || (() => {})}
+                containerRef={containerRef || listRef}
+                loadMoreConversations={() => {}}
+                isLoading={false}
+                isSearchLoading={false}
               />
             )}
           </CollapsibleSection>
