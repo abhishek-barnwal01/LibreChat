@@ -16,6 +16,7 @@ const mockConversationData = {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '2',
@@ -23,6 +24,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 86400000).toISOString(),
           updatedAt: new Date(Date.now() - 86400000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '3',
@@ -30,6 +32,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 172800000).toISOString(),
           updatedAt: new Date(Date.now() - 172800000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '4',
@@ -37,6 +40,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 259200000).toISOString(),
           updatedAt: new Date(Date.now() - 259200000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '5',
@@ -44,6 +48,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 345600000).toISOString(),
           updatedAt: new Date(Date.now() - 345600000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '6',
@@ -51,6 +56,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 432000000).toISOString(),
           updatedAt: new Date(Date.now() - 432000000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '7',
@@ -58,6 +64,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 518400000).toISOString(),
           updatedAt: new Date(Date.now() - 518400000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '8',
@@ -65,6 +72,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 604800000).toISOString(),
           updatedAt: new Date(Date.now() - 604800000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '9',
@@ -72,6 +80,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 691200000).toISOString(),
           updatedAt: new Date(Date.now() - 691200000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '10',
@@ -79,6 +88,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 777600000).toISOString(),
           updatedAt: new Date(Date.now() - 777600000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '11',
@@ -86,6 +96,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 864000000).toISOString(),
           updatedAt: new Date(Date.now() - 864000000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '12',
@@ -93,6 +104,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 950400000).toISOString(),
           updatedAt: new Date(Date.now() - 950400000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '13',
@@ -100,6 +112,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 1036800000).toISOString(),
           updatedAt: new Date(Date.now() - 1036800000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '14',
@@ -107,6 +120,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 1123200000).toISOString(),
           updatedAt: new Date(Date.now() - 1123200000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
         {
           conversationId: '15',
@@ -114,6 +128,7 @@ const mockConversationData = {
           createdAt: new Date(Date.now() - 1209600000).toISOString(),
           updatedAt: new Date(Date.now() - 1209600000).toISOString(),
           endpoint: EModelEndpoint.openAI,
+          user: 'demo-user',
         },
       ],
       pageNumber: 1,
