@@ -18,6 +18,7 @@ import LoginLayout from './Layouts/Login';
 import dashboardRoutes from './Dashboard';
 import ShareRoute from './ShareRoute';
 import ChatRoute from './ChatRoute';
+import DemoRoute from './DemoRoute';
 import Search from './Search';
 import Root from './Root';
 
@@ -33,6 +34,11 @@ const baseHref = baseEl?.getAttribute('href') || '/';
 
 export const router = createBrowserRouter(
   [
+    {
+      path: 'demo',
+      element: <DemoRoute />,
+      errorElement: <RouteErrorBoundary />,
+    },
     {
       path: 'share/:shareId',
       element: <ShareRoute />,
