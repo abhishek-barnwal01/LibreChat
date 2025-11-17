@@ -32,7 +32,6 @@ export default function Root() {
     const savedNavVisible = localStorage.getItem('navVisible');
     return savedNavVisible !== null ? JSON.parse(savedNavVisible) : true;
   });
-  const [sidebarView, setSidebarView] = useState<'filters' | 'history'>('filters');
 
   const { isAuthenticated, logout } = useAuthContext();
   const navigate = useNavigate();
@@ -108,12 +107,8 @@ export default function Root() {
                 {/* Main Content Area */}
                 <div className="flex flex-1 overflow-hidden">
                   {/* Left Sidebar */}
-                  <aside className="w-56 flex-shrink-0 border-r border-gray-200">
-                    <LeftSidebar
-                      view={sidebarView}
-                      onViewChange={setSidebarView}
-                      conversationData={conversationData}
-                    />
+                  <aside className="w-52 flex-shrink-0 border-r border-gray-200">
+                    <LeftSidebar conversationData={conversationData} />
                   </aside>
 
                   {/* Center Chat Area */}
@@ -122,7 +117,7 @@ export default function Root() {
                   </main>
 
                   {/* Right Sidebar */}
-                  <aside className="w-72 flex-shrink-0">
+                  <aside className="w-64 flex-shrink-0">
                     <RightSidebar onPromptClick={handlePromptClick} />
                   </aside>
                 </div>

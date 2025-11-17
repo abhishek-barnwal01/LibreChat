@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import TopNavigation from '~/components/Nav/TopNavigation';
 import LeftSidebar from '~/components/Nav/LeftSidebar';
 import RightSidebar from '~/components/Nav/RightSidebar';
@@ -6,8 +5,6 @@ import EmptyChat from '~/components/Chat/EmptyChat';
 
 // Demo route to preview the new UI without backend
 export default function DemoRoute() {
-  const [sidebarView, setSidebarView] = useState<'filters' | 'history'>('filters');
-
   const handleNewQuery = () => {
     console.log('New Query clicked');
   };
@@ -24,12 +21,8 @@ export default function DemoRoute() {
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
-        <aside className="w-64 flex-shrink-0 border-r border-gray-200">
-          <LeftSidebar
-            view={sidebarView}
-            onViewChange={setSidebarView}
-            conversationData={undefined}
-          />
+        <aside className="w-52 flex-shrink-0 border-r border-gray-200">
+          <LeftSidebar conversationData={undefined} />
         </aside>
 
         {/* Center Chat Area */}
@@ -68,7 +61,7 @@ export default function DemoRoute() {
         </main>
 
         {/* Right Sidebar */}
-        <aside className="w-80 flex-shrink-0">
+        <aside className="w-64 flex-shrink-0">
           <RightSidebar onPromptClick={handlePromptClick} />
         </aside>
       </div>

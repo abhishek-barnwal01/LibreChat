@@ -45,7 +45,7 @@ const TopNavigation = memo(({ onNewQuery }: TopNavigationProps) => {
         <div className="flex items-center gap-4">
           <button
             type="button"
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:text-gray-900"
+            className="flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
           >
             <Search className="h-4 w-4" />
             <span className="hidden md:inline">Quick Search</span>
