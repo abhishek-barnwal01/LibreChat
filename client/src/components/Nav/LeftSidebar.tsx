@@ -94,7 +94,11 @@ const LeftSidebar = memo(
 
     // Flatten conversations from pages structure
     const conversations = useMemo(() => {
-      return conversationData ? conversationData.pages.flatMap((page) => page.conversations) : [];
+      const flattened = conversationData ? conversationData.pages.flatMap((page) => page.conversations) : [];
+      console.log('LeftSidebar - conversationData:', conversationData);
+      console.log('LeftSidebar - flattened conversations:', flattened);
+      console.log('LeftSidebar - conversations.length:', flattened.length);
+      return flattened;
     }, [conversationData]);
 
     return (
@@ -240,16 +244,22 @@ const LeftSidebar = memo(
 
           {/* Chat History Section */}
           <CollapsibleSection title="Chat History" defaultOpen={true}>
-            {conversations.length > 0 && (
-              <Conversations
-                conversations={conversations}
-                moveToTop={moveToTop || (() => {})}
-                toggleNav={toggleNavVisible || (() => {})}
-                containerRef={containerRef || listRef}
-                loadMoreConversations={() => {}}
-                isLoading={false}
-                isSearchLoading={false}
-              />
+            {console.log('Rendering Chat History section, conversations.length:', conversations.length)}
+            {conversations.length > 0 ? (
+              <div>
+                {console.log('Rendering Conversations component with:', conversations)}
+                <Conversations
+                  conversations={conversations}
+                  moveToTop={moveToTop || (() => {})}
+                  toggleNav={toggleNavVisible || (() => {})}
+                  containerRef={containerRef || listRef}
+                  loadMoreConversations={() => {}}
+                  isLoading={false}
+                  isSearchLoading={false}
+                />
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No conversations found</div>
             )}
           </CollapsibleSection>
         </div>
