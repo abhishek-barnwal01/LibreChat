@@ -245,15 +245,17 @@ const LeftSidebar = memo(
           {/* Chat History Section */}
           <CollapsibleSection title="Chat History" defaultOpen={true}>
             {conversations.length > 0 ? (
-              <Conversations
-                conversations={conversations}
-                moveToTop={moveToTop || (() => {})}
-                toggleNav={toggleNavVisible || (() => {})}
-                containerRef={containerRef || listRef}
-                loadMoreConversations={() => {}}
-                isLoading={false}
-                isSearchLoading={false}
-              />
+              <div className="h-64 overflow-hidden">
+                <Conversations
+                  conversations={conversations}
+                  moveToTop={moveToTop || (() => {})}
+                  toggleNav={toggleNavVisible || (() => {})}
+                  containerRef={containerRef || listRef}
+                  loadMoreConversations={() => {}}
+                  isLoading={false}
+                  isSearchLoading={false}
+                />
+              </div>
             ) : (
               <div className="text-sm text-gray-500">No conversations found</div>
             )}
