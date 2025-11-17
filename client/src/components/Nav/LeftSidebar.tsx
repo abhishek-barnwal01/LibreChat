@@ -1,4 +1,4 @@
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useRef } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -8,7 +8,7 @@ import {
   Link as LinkIcon,
 } from 'lucide-react';
 import { cn } from '~/utils';
-import SimpleConversationList from './SimpleConversationList';
+import { Conversations } from '~/components/Conversations';
 import type { ConversationListResponse } from 'librechat-data-provider';
 
 interface LeftSidebarProps {
@@ -74,6 +74,7 @@ const LeftSidebar = memo(({ conversationData }: LeftSidebarProps) => {
   const [selectedProject, setSelectedProject] = useState('default');
   const [selectedDataset, setSelectedDataset] = useState('household');
   const [selectedGeography, setSelectedGeography] = useState('india');
+  const listRef = useRef<any>(null);
 
   // Flatten conversations from pages structure
   const conversations = useMemo(() => {
@@ -224,7 +225,18 @@ const LeftSidebar = memo(({ conversationData }: LeftSidebarProps) => {
         {/* Chat History Section */}
         <CollapsibleSection title="Chat History" defaultOpen={true}>
           {conversations.length > 0 ? (
-            <SimpleConversationList conversations={conversations} />
+            <div className="h-64 overflow-hidden">
+              <Conversations
+                conversations={conversations}
+                moveToTop={() => {}}
+                toggleNav={() => {}}
+                containerRef={listRef}
+                loadMoreConversations={() => {}}
+                isLoading={false}
+                isSearchLoading={false}
+                compact={true}
+              />
+            </div>
           ) : (
             <div className="text-sm text-gray-500">No conversations found</div>
           )}

@@ -15,6 +15,7 @@ interface ConversationsProps {
   loadMoreConversations: () => void;
   isLoading: boolean;
   isSearchLoading: boolean;
+  compact?: boolean;
 }
 
 const LoadingSpinner = memo(() => {
@@ -51,12 +52,14 @@ const MemoizedConvo = memo(
     conversation,
     retainView,
     toggleNav,
+    compact,
   }: {
     conversation: TConversation;
     retainView: () => void;
     toggleNav: () => void;
+    compact?: boolean;
   }) => {
-    return <Convo conversation={conversation} retainView={retainView} toggleNav={toggleNav} />;
+    return <Convo conversation={conversation} retainView={retainView} toggleNav={toggleNav} compact={compact} />;
   },
   (prevProps, nextProps) => {
     return (
@@ -75,6 +78,7 @@ const Conversations: FC<ConversationsProps> = ({
   loadMoreConversations,
   isLoading,
   isSearchLoading,
+  compact = false,
 }) => {
   const localize = useLocalize();
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
@@ -144,7 +148,7 @@ const Conversations: FC<ConversationsProps> = ({
         rendering = <DateLabel groupName={item.groupName} />;
       } else if (item.type === 'convo') {
         rendering = (
-          <MemoizedConvo conversation={item.convo} retainView={moveToTop} toggleNav={toggleNav} />
+          <MemoizedConvo conversation={item.convo} retainView={moveToTop} toggleNav={toggleNav} compact={compact} />
         );
       }
       return (
@@ -157,7 +161,7 @@ const Conversations: FC<ConversationsProps> = ({
         </CellMeasurer>
       );
     },
-    [cache, flattenedItems, moveToTop, toggleNav],
+    [cache, flattenedItems, moveToTop, toggleNav, compact],
   );
 
   const getRowHeight = useCallback(

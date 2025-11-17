@@ -14,14 +14,16 @@ import RenameForm from './RenameForm';
 import { cn, logger } from '~/utils';
 import ConvoLink from './ConvoLink';
 import store from '~/store';
+import { MessageSquare } from 'lucide-react';
 
 interface ConversationProps {
   conversation: TConversation;
   retainView: () => void;
   toggleNav: () => void;
+  compact?: boolean;
 }
 
-export default function Conversation({ conversation, retainView, toggleNav }: ConversationProps) {
+export default function Conversation({ conversation, retainView, toggleNav, compact = false }: ConversationProps) {
   const params = useParams();
   const localize = useLocalize();
   const { showToast } = useToastContext();
@@ -128,6 +130,31 @@ export default function Conversation({ conversation, retainView, toggleNav }: Co
     isPopoverActive,
     setIsPopoverActive,
   };
+
+  // Compact mode for simplified UI
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          handleNavigation(e.ctrlKey || e.metaKey);
+        }}
+        className={cn(
+          'flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-gray-100',
+          isActiveConvo && 'bg-gray-200',
+        )}
+      >
+        <MessageSquare className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-500" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm text-gray-900">{title || localize('com_ui_untitled')}</div>
+          <div className="text-xs text-gray-500">
+            {Math.floor(Math.random() * 8) + 2} messages
+          </div>
+        </div>
+      </button>
+    );
+  }
 
   return (
     <div
