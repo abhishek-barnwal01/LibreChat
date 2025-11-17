@@ -86,6 +86,7 @@ const LeftSidebar = memo(
     scrollableRef,
     refetch,
   }: LeftSidebarProps) => {
+    const [selectedProject, setSelectedProject] = useState('default');
     const [selectedDataset, setSelectedDataset] = useState('household');
     const [selectedGeography, setSelectedGeography] = useState('india');
 
@@ -97,9 +98,47 @@ const LeftSidebar = memo(
 
         {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto">
+          {/* Projects Section */}
+          <CollapsibleSection
+            title="Projects"
+            defaultOpen={true}
+            rightAction={
+              <button
+                type="button"
+                className="rounded p-0.5 hover:bg-gray-200"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Handle add project
+                }}
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            }
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedProject('default')}
+              className={cn(
+                'w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all',
+                selectedProject === 'default'
+                  ? 'bg-gradient-to-r from-green-500 to-purple-500 text-white shadow-md'
+                  : 'bg-white text-gray-700 hover:bg-gray-100',
+              )}
+            >
+              Default Project
+            </button>
+          </CollapsibleSection>
+
           {/* Documents Section */}
-          <div className="border-b border-gray-200 py-3">
-            <div className="space-y-2 px-3">
+          <CollapsibleSection title="Documents" defaultOpen={true}>
+            <div className="space-y-2">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+              >
+                <FolderOpen className="h-4 w-4" />
+                <span>Knowledge Base</span>
+              </button>
               <button
                 type="button"
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
@@ -115,7 +154,7 @@ const LeftSidebar = memo(
                 <span>Link SharePoint</span>
               </button>
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Filters Section */}
           <CollapsibleSection
