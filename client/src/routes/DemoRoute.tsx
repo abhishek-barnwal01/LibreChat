@@ -102,6 +102,7 @@ const mockConversationData = {
       ],
       pageNumber: 1,
       pageSize: 15,
+      nextCursor: null, // No more pages
     },
   ],
   pageParams: [undefined],
