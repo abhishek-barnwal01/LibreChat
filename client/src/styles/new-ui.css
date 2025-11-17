@@ -1,0 +1,127 @@
+/* Custom Styles for New CMI-inspired UI */
+
+/* Gradient utilities */
+.gradient-green-purple {
+  background: linear-gradient(135deg, #10b981 0%, #a855f7 100%);
+}
+
+.gradient-text-green-purple {
+  background: linear-gradient(135deg, #10b981 0%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Enhanced input styling to match target design */
+#prompt-textarea {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Send button circular style */
+button[aria-label*="send" i],
+button[data-testid="send-button"] {
+  @apply rounded-full bg-gray-400 p-3 transition-colors hover:bg-gray-500;
+}
+
+/* Pill button styling */
+.pill-button {
+  @apply rounded-full border px-4 py-1.5 text-sm transition-colors;
+}
+
+.pill-button-selected {
+  @apply border-black bg-black text-white;
+}
+
+.pill-button-unselected {
+  @apply border-gray-300 bg-white text-gray-700 hover:border-gray-400;
+}
+
+/* Scrollbar styling for sidebars */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Smooth transitions */
+.transition-layout {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Section dividers */
+.section-divider {
+  @apply border-b border-gray-200;
+}
+
+/* Hover effects for interactive elements */
+.interactive-hover {
+  @apply transition-colors duration-200 hover:bg-gray-50;
+}
+
+/* Focus styles for accessibility */
+.focus-visible-ring:focus-visible {
+  @apply ring-2 ring-purple-500 ring-offset-2;
+}
+
+/* Empty state styling */
+.empty-state-icon {
+  @apply rounded-full bg-gray-100 p-4;
+}
+
+/* Prompt card styling */
+.prompt-card {
+  @apply rounded-lg border border-gray-200 bg-white p-3 text-left text-sm text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50;
+}
+
+/* Input container enhancements */
+.chat-input-container {
+  @apply rounded-full border border-gray-300 bg-white px-4 py-2 shadow-sm transition-shadow focus-within:border-gray-400 focus-within:shadow-md;
+}
+
+/* Navigation link styling */
+.nav-link {
+  @apply text-sm text-gray-700 transition-colors hover:text-gray-900;
+}
+
+/* Collapsible section styling */
+.collapsible-section {
+  @apply border-b border-gray-200 py-3;
+}
+
+.collapsible-header {
+  @apply flex w-full items-center justify-between px-3 text-xs font-medium uppercase tracking-wide text-gray-500;
+}
+
+/* Icon button styling */
+.icon-button {
+  @apply rounded p-0.5 transition-colors hover:bg-gray-200;
+}
+
+/* Gradient button */
+.gradient-button {
+  @apply flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity;
+  background: linear-gradient(135deg, #10b981 0%, #a855f7 100%);
+}
+
+.gradient-button:hover {
+  @apply opacity-90;
+}
+
+/* Project card with gradient */
+.project-card-gradient {
+  @apply w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white shadow-md transition-all;
+  background: linear-gradient(135deg, #10b981 0%, #a855f7 100%);
+}

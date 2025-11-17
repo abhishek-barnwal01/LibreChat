@@ -6,3 +6,6 @@ export { default as NavLink } from './NavLink';
 export { default as NewChat } from './NewChat';
 export { default as SearchBar } from './SearchBar';
 export { default as Settings } from './Settings';
+export { default as TopNavigation } from './TopNavigation';
+export { default as LeftSidebar } from './LeftSidebar';
+export { default as RightSidebar } from './RightSidebar';
