@@ -3,6 +3,89 @@ import LeftSidebar from '~/components/Nav/LeftSidebar';
 import RightSidebar from '~/components/Nav/RightSidebar';
 import EmptyChat from '~/components/Chat/EmptyChat';
 
+// Mock conversation data for demo
+const mockConversationData = {
+  pages: [
+    {
+      conversations: [
+        {
+          conversationId: '1',
+          title: 'what are the policy...',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messageCount: 8,
+        },
+        {
+          conversationId: '2',
+          title: 'Show me market share trends',
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          updatedAt: new Date(Date.now() - 86400000).toISOString(),
+          messageCount: 2,
+        },
+        {
+          conversationId: '3',
+          title: 'What are the market dynamics',
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          updatedAt: new Date(Date.now() - 172800000).toISOString(),
+          messageCount: 2,
+        },
+        {
+          conversationId: '4',
+          title: 'What are the key consumer trends',
+          createdAt: new Date(Date.now() - 259200000).toISOString(),
+          updatedAt: new Date(Date.now() - 259200000).toISOString(),
+          messageCount: 2,
+        },
+        {
+          conversationId: '5',
+          title: 'What is Godrej market position',
+          createdAt: new Date(Date.now() - 345600000).toISOString(),
+          updatedAt: new Date(Date.now() - 345600000).toISOString(),
+          messageCount: 2,
+        },
+        {
+          conversationId: '6',
+          title: 'What is the policy impact',
+          createdAt: new Date(Date.now() - 432000000).toISOString(),
+          updatedAt: new Date(Date.now() - 432000000).toISOString(),
+          messageCount: 2,
+        },
+        {
+          conversationId: '7',
+          title: 'What is Godrej market share',
+          createdAt: new Date(Date.now() - 518400000).toISOString(),
+          updatedAt: new Date(Date.now() - 518400000).toISOString(),
+          messageCount: 6,
+        },
+        {
+          conversationId: '8',
+          title: 'what is the policy recommendations',
+          createdAt: new Date(Date.now() - 604800000).toISOString(),
+          updatedAt: new Date(Date.now() - 604800000).toISOString(),
+          messageCount: 2,
+        },
+        {
+          conversationId: '9',
+          title: 'What is the market outlook',
+          createdAt: new Date(Date.now() - 691200000).toISOString(),
+          updatedAt: new Date(Date.now() - 691200000).toISOString(),
+          messageCount: 2,
+        },
+        {
+          conversationId: '10',
+          title: 'what is the LIC product analysis',
+          createdAt: new Date(Date.now() - 777600000).toISOString(),
+          updatedAt: new Date(Date.now() - 777600000).toISOString(),
+          messageCount: 2,
+        },
+      ],
+      pageNumber: 1,
+      pageSize: 10,
+    },
+  ],
+  pageParams: [undefined],
+};
+
 // Demo route to preview the new UI without backend
 export default function DemoRoute() {
   const handleNewQuery = () => {
@@ -22,7 +105,7 @@ export default function DemoRoute() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
         <aside className="w-52 flex-shrink-0 border-r border-gray-200">
-          <LeftSidebar conversationData={undefined} />
+          <LeftSidebar conversationData={mockConversationData} />
         </aside>
 
         {/* Center Chat Area */}
