@@ -108,7 +108,7 @@ export default function Root() {
                 {/* Main Content Area */}
                 <div className="flex flex-1 overflow-hidden">
                   {/* Left Sidebar */}
-                  <aside className="w-64 flex-shrink-0 border-r border-gray-200">
+                  <aside className="w-56 flex-shrink-0 border-r border-gray-200">
                     <LeftSidebar
                       view={sidebarView}
                       onViewChange={setSidebarView}
@@ -122,7 +122,7 @@ export default function Root() {
                   </main>
 
                   {/* Right Sidebar */}
-                  <aside className="w-80 flex-shrink-0">
+                  <aside className="w-72 flex-shrink-0">
                     <RightSidebar onPromptClick={handlePromptClick} />
                   </aside>
                 </div>

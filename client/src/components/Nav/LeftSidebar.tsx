@@ -101,24 +101,28 @@ const LeftSidebar = memo(
             <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
           </div>
 
-          <CollapsibleSection title="Chat History" defaultOpen={true}>
-            {conversationData && (
-              <Conversations
-                conversations={conversationData}
-                moveToTop={moveToTop}
-                toggleNavVisible={toggleNavVisible}
-              />
-            )}
-          </CollapsibleSection>
+          <div className="flex-1 overflow-y-auto">
+            <CollapsibleSection title="Chat History" defaultOpen={true}>
+              {conversationData && (
+                <Conversations
+                  conversations={conversationData}
+                  moveToTop={moveToTop}
+                  toggleNavVisible={toggleNavVisible}
+                />
+              )}
+            </CollapsibleSection>
+          </div>
         </div>
       );
     }
 
     return (
-      <div className="flex h-full flex-col overflow-y-auto bg-gray-50">
+      <div className="flex h-full flex-col bg-gray-50">
         <div className="border-b border-gray-200 p-4">
           <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
         </div>
+
+        <div className="flex-1 overflow-y-auto">
 
         {/* Projects Section */}
         <CollapsibleSection
@@ -250,6 +254,7 @@ const LeftSidebar = memo(
             </div>
           </div>
         </CollapsibleSection>
+        </div>
       </div>
     );
   },

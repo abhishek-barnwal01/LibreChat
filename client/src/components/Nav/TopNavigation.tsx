@@ -20,32 +20,32 @@ const TopNavigation = memo(({ onNewQuery }: TopNavigationProps) => {
     <nav className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex h-16 items-center justify-between px-6">
         {/* Left: Logo */}
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-2">
-            <div className="bg-gradient-to-r from-green-500 to-purple-500 bg-clip-text text-xl font-bold text-transparent">
-              LibreChat
-            </div>
-          </div>
+        <div className="flex items-center">
+          <img
+            alt="Godrej Consumer Products"
+            className="h-10 w-auto"
+            src="https://customer-assets.emergentagent.com/job_cmi-assistant/artifacts/u2rv5syb_image.png"
+          />
+        </div>
 
-          {/* Center: Navigation Links */}
-          <div className="hidden items-center gap-6 md:flex">
-            {navItems.map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                className="text-sm text-gray-700 transition-colors hover:text-gray-900"
-              >
-                {item.label}
-              </a>
-            ))}
-          </div>
+        {/* Center: Navigation Links */}
+        <div className="hidden items-center gap-6 md:flex">
+          {navItems.map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              className="text-sm text-gray-700 transition-colors hover:text-gray-900"
+            >
+              {item.label}
+            </a>
+          ))}
         </div>
 
         {/* Right: Quick Search and New Query */}
         <div className="flex items-center gap-4">
           <button
             type="button"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:text-gray-900"
           >
             <Search className="h-4 w-4" />
             <span className="hidden md:inline">Quick Search</span>
