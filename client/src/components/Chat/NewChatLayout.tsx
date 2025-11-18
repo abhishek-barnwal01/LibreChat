@@ -38,12 +38,26 @@ const NewChatLayout = memo(() => {
     // Handle prompt selection - this would typically set the input value
     const textarea = document.querySelector('textarea[id="prompt-textarea"]') as HTMLTextAreaElement;
     if (textarea) {
-      // Set the value
-      textarea.value = prompt;
+      // Get the native setter to bypass React's value tracking
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        'value',
+      )?.set;
 
-      // Trigger React's onChange event to update form state and enable send button
-      const event = new Event('input', { bubbles: true });
-      textarea.dispatchEvent(event);
+      if (nativeInputValueSetter) {
+        // Set value using native setter
+        nativeInputValueSetter.call(textarea, prompt);
+      } else {
+        // Fallback
+        textarea.value = prompt;
+      }
+
+      // Dispatch both input and change events for React
+      const inputEvent = new Event('input', { bubbles: true });
+      textarea.dispatchEvent(inputEvent);
+
+      const changeEvent = new Event('change', { bubbles: true });
+      textarea.dispatchEvent(changeEvent);
 
       // Focus the textarea
       textarea.focus();
