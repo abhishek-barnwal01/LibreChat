@@ -276,14 +276,8 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
         </CollapsibleSection>
 
         {/* Chat History Section */}
-        <div className="border-b border-gray-200 py-3">
-          <div className="mb-3 flex items-center justify-between px-3 text-xs font-medium uppercase tracking-wide text-gray-500">
-            <div className="flex items-center gap-2">
-              <ChevronDown className="h-3 w-3" />
-              <span>Chat History</span>
-            </div>
-          </div>
-          <div className="h-[500px] px-3">
+        <CollapsibleSection title="Chat History" defaultOpen={true}>
+          <div className="min-h-[600px]">
             <Conversations
               conversations={conversations}
               moveToTop={moveToTop}
@@ -295,7 +289,7 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
               compact={true}
             />
           </div>
-        </div>
+        </CollapsibleSection>
       </div>
     </div>
   );
