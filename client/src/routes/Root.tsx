@@ -82,12 +82,25 @@ export default function Root() {
   }, [navigate]);
 
   const handlePromptClick = useCallback((prompt: string) => {
-    const textarea = document.querySelector('textarea[id="prompt-textarea"]') as HTMLTextAreaElement;
-    if (textarea) {
-      textarea.value = prompt;
-      textarea.focus();
-    }
-  }, []);
+    // Navigate to new chat first
+    navigate('/c/new');
+
+    // Wait for navigation and DOM update, then set the prompt
+    setTimeout(() => {
+      const textarea = document.querySelector('textarea[id="prompt-textarea"]') as HTMLTextAreaElement;
+      if (textarea) {
+        // Set the value
+        textarea.value = prompt;
+
+        // Trigger React's onChange event to update form state
+        const event = new Event('input', { bubbles: true });
+        textarea.dispatchEvent(event);
+
+        // Focus the textarea
+        textarea.focus();
+      }
+    }, 100);
+  }, [navigate]);
 
   if (!isAuthenticated) {
     return null;
