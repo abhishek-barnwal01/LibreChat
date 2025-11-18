@@ -24,6 +24,7 @@ import { TermsAndConditionsModal } from '~/components/ui';
 import TopNavigation from '~/components/Nav/TopNavigation';
 import LeftSidebar from '~/components/Nav/LeftSidebar';
 import RightSidebar from '~/components/Nav/RightSidebar';
+import NavToggle from '~/components/Nav/NavToggle';
 import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
 import { clearMessagesCache } from '~/utils';
@@ -36,6 +37,12 @@ export default function Root() {
     const savedNavVisible = localStorage.getItem('navVisible');
     return savedNavVisible !== null ? JSON.parse(savedNavVisible) : true;
   });
+  const [rightSidebarVisible, setRightSidebarVisible] = useState(() => {
+    const savedRightSidebarVisible = localStorage.getItem('rightSidebarVisible');
+    return savedRightSidebarVisible !== null ? JSON.parse(savedRightSidebarVisible) : true;
+  });
+  const [isHoveringLeft, setIsHoveringLeft] = useState(false);
+  const [isHoveringRight, setIsHoveringRight] = useState(false);
 
   const { isAuthenticated, logout } = useAuthContext();
   const navigate = useNavigate();
@@ -115,6 +122,20 @@ export default function Root() {
     }
   }, []);
 
+  const toggleLeftSidebar = useCallback(() => {
+    setNavVisible((prev) => {
+      localStorage.setItem('navVisible', JSON.stringify(!prev));
+      return !prev;
+    });
+  }, []);
+
+  const toggleRightSidebar = useCallback(() => {
+    setRightSidebarVisible((prev) => {
+      localStorage.setItem('rightSidebarVisible', JSON.stringify(!prev));
+      return !prev;
+    });
+  }, []);
+
   if (!isAuthenticated) {
     return null;
   }
@@ -133,17 +154,64 @@ export default function Root() {
                 {/* Main Content Area */}
                 <div className="flex flex-1 overflow-hidden">
                   {/* Left Sidebar */}
-                  <aside className="w-52 flex-shrink-0 border-r border-gray-200">
+                  <aside
+                    className="flex-shrink-0 border-r border-gray-200 transition-all duration-200 ease-in-out"
+                    style={{
+                      width: navVisible ? '208px' : '0px',
+                      opacity: navVisible ? 1 : 0,
+                    }}
+                  >
                     <LeftSidebar />
                   </aside>
+
+                  {/* Left Sidebar Toggle */}
+                  <div
+                    className="fixed left-0 z-20"
+                    style={{
+                      top: `calc(50vh + ${bannerHeight / 2}px)`,
+                    }}
+                  >
+                    <NavToggle
+                      onToggle={toggleLeftSidebar}
+                      navVisible={navVisible}
+                      isHovering={isHoveringLeft}
+                      setIsHovering={setIsHoveringLeft}
+                      side="left"
+                      translateX={true}
+                    />
+                  </div>
 
                   {/* Center Chat Area */}
                   <main className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
                     <Outlet context={{ navVisible, setNavVisible } satisfies ContextType} />
                   </main>
 
+                  {/* Right Sidebar Toggle */}
+                  <div
+                    className="fixed z-20 transition-all duration-200 ease-in-out"
+                    style={{
+                      right: rightSidebarVisible ? '256px' : '0px',
+                      top: `calc(50vh + ${bannerHeight / 2}px)`,
+                    }}
+                  >
+                    <NavToggle
+                      onToggle={toggleRightSidebar}
+                      navVisible={rightSidebarVisible}
+                      isHovering={isHoveringRight}
+                      setIsHovering={setIsHoveringRight}
+                      side="right"
+                      translateX={false}
+                    />
+                  </div>
+
                   {/* Right Sidebar */}
-                  <aside className="w-64 flex-shrink-0">
+                  <aside
+                    className="flex-shrink-0 transition-all duration-200 ease-in-out"
+                    style={{
+                      width: rightSidebarVisible ? '256px' : '0px',
+                      opacity: rightSidebarVisible ? 1 : 0,
+                    }}
+                  >
                     <RightSidebar onPromptClick={handlePromptClick} />
                   </aside>
                 </div>
