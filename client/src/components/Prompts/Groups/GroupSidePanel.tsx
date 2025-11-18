@@ -11,10 +11,12 @@ export default function GroupSidePanel({
   children,
   isDetailView,
   className = '',
+  onPromptClick,
 }: {
   children?: React.ReactNode;
   isDetailView?: boolean;
   className?: string;
+  onPromptClick?: (prompt: string) => void;
 }) {
   const location = useLocation();
   const isSmallerScreen = useMediaQuery('(max-width: 1024px)');
@@ -34,7 +36,12 @@ export default function GroupSidePanel({
     >
       {children}
       <div className={cn('flex-grow', isChatRoute ? '' : 'overflow-y-auto px-2 md:px-0')}>
-        <List groups={promptGroups} isChatRoute={isChatRoute} isLoading={!!groupsQuery.isLoading} />
+        <List
+          groups={promptGroups}
+          isChatRoute={isChatRoute}
+          isLoading={!!groupsQuery.isLoading}
+          onPromptClick={onPromptClick}
+        />
       </div>
       <div className={cn(isChatRoute ? '' : 'px-2 pb-3 pt-2 md:px-0')}>
         <PanelNavigation

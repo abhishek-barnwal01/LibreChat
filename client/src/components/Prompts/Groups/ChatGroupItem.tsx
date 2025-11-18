@@ -18,9 +18,11 @@ import { detectVariables } from '~/utils';
 function ChatGroupItem({
   group,
   instanceProjectId,
+  onPromptClick,
 }: {
   group: TPromptGroup;
   instanceProjectId?: string;
+  onPromptClick?: (prompt: string) => void;
 }) {
   const localize = useLocalize();
   const { submitPrompt } = useSubmitMessage();
@@ -48,7 +50,12 @@ function ChatGroupItem({
       return;
     }
 
-    submitPrompt(text);
+    // Use custom onPromptClick if provided (for RightSidebar), otherwise use default submitPrompt
+    if (onPromptClick) {
+      onPromptClick(text);
+    } else {
+      submitPrompt(text);
+    }
   };
 
   return (

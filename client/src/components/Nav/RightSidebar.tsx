@@ -53,6 +53,7 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
           <GroupSidePanel
             isDetailView={false}
             className="!w-full border-b-0 md:!min-w-0 lg:!w-full xl:!w-full"
+            onPromptClick={onPromptClick}
           />
         </div>
 

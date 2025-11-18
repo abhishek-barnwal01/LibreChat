@@ -12,10 +12,12 @@ export default function List({
   groups = [],
   isChatRoute,
   isLoading,
+  onPromptClick,
 }: {
   groups?: TPromptGroup[];
   isChatRoute: boolean;
   isLoading: boolean;
+  onPromptClick?: (prompt: string) => void;
 }) {
   const navigate = useNavigate();
   const localize = useLocalize();
@@ -77,6 +79,7 @@ export default function List({
                   key={group._id}
                   group={group}
                   instanceProjectId={instanceProjectId}
+                  onPromptClick={onPromptClick}
                 />
               );
             }
