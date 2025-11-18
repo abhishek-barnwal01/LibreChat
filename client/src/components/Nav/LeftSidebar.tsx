@@ -7,7 +7,7 @@ import {
   Upload,
   Link as LinkIcon,
 } from 'lucide-react';
-import { Sidebar } from '@librechat/client';
+import { Sidebar, Button } from '@librechat/client';
 import { useRecoilValue } from 'recoil';
 import { cn } from '~/utils';
 import { Conversations } from '~/components/Conversations';
@@ -140,13 +140,15 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
     <div className="flex h-full flex-col bg-white">
       <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 p-4">
         <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
-        <button
+        <Button
+          size="icon"
+          variant="outline"
           onClick={onCollapse}
-          className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white p-2 shadow-sm hover:bg-gray-100"
+          className="rounded-xl border border-gray-300 bg-white p-2 hover:bg-gray-100"
           aria-label="Collapse sidebar"
         >
           <Sidebar />
-        </button>
+        </Button>
       </div>
 
       {/* Single scrollable content area for entire sidebar */}
