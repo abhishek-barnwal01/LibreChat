@@ -948,7 +948,8 @@ pre {
   border-radius: 0.35rem;
 }
 .dark .prose :where(code):not(:where([class~='not-prose'] *)):not(:where(pre *)) {
-  background-color: var(--gray-600);
+  background-color: var(--gray-200);
+  color: var(--gray-800);
 }
 .prose :where(a code):not(:where([class~='not-prose'] *)) {
   color: inherit;
