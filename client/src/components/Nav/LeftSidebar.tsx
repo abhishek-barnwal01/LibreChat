@@ -2,6 +2,7 @@ import { memo, useState, useMemo, useRef, useCallback } from 'react';
 import {
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Plus,
   FolderOpen,
   Upload,
@@ -16,6 +17,7 @@ import store from '~/store';
 
 interface LeftSidebarProps {
   toggleNav?: () => void;
+  onCollapse?: () => void;
 }
 
 interface CollapsibleSectionProps {
@@ -73,7 +75,7 @@ const PillButton = memo(({ children, selected = false, onClick }: PillButtonProp
 
 PillButton.displayName = 'PillButton';
 
-const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
+const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
   const [selectedProject, setSelectedProject] = useState('default');
   const [selectedDataset, setSelectedDataset] = useState('household');
   const [selectedGeography, setSelectedGeography] = useState('india');
@@ -136,8 +138,15 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
 
   return (
     <div className="flex h-full flex-col bg-white">
-      <div className="flex-shrink-0 border-b border-gray-200 p-4">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 p-4">
         <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
+        <button
+          onClick={onCollapse}
+          className="rounded p-1 hover:bg-gray-100"
+          aria-label="Collapse sidebar"
+        >
+          <ChevronLeft className="h-5 w-5 text-gray-700" />
+        </button>
       </div>
 
       {/* Single scrollable content area for entire sidebar */}
