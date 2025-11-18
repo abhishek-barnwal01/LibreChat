@@ -225,18 +225,16 @@ const LeftSidebar = memo(({ conversationData }: LeftSidebarProps) => {
         {/* Chat History Section */}
         <CollapsibleSection title="Chat History" defaultOpen={true}>
           {conversations.length > 0 ? (
-            <div className="h-64 overflow-hidden">
-              <Conversations
-                conversations={conversations}
-                moveToTop={() => {}}
-                toggleNav={() => {}}
-                containerRef={listRef}
-                loadMoreConversations={() => {}}
-                isLoading={false}
-                isSearchLoading={false}
-                compact={true}
-              />
-            </div>
+            <Conversations
+              conversations={conversations}
+              moveToTop={() => {}}
+              toggleNav={() => {}}
+              containerRef={listRef}
+              loadMoreConversations={() => {}}
+              isLoading={false}
+              isSearchLoading={false}
+              compact={true}
+            />
           ) : (
             <div className="text-sm text-gray-500">No conversations found</div>
           )}

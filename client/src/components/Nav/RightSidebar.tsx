@@ -76,7 +76,18 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
                       key={prompt.id}
                       type="button"
                       onClick={() => onPromptClick?.(prompt.text)}
-                      className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left text-sm text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50"
+                      className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left text-sm text-gray-700 transition-all duration-300 hover:border-[#54b948] hover:shadow-lg"
+                      style={{
+                        transition: 'all 0.3s ease-in-out',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'linear-gradient(90deg, #54b9481a, #00aeef1a, #ec008c1a)';
+                        e.currentTarget.style.transform = 'translateX(2px)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '';
+                        e.currentTarget.style.transform = '';
+                      }}
                     >
                       {prompt.text}
                     </button>

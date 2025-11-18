@@ -28,7 +28,18 @@ export default function ListCard({
     <div
       onClick={onClick}
       onKeyDown={handleKeyDown}
-      className="relative my-2 flex w-full cursor-pointer flex-col gap-2 rounded-xl border border-border-light px-3 pb-4 pt-3 text-start align-top text-[15px] shadow-sm transition-all duration-300 ease-in-out hover:bg-surface-tertiary hover:shadow-lg"
+      className="relative my-2 flex w-full cursor-pointer flex-col gap-2 rounded-xl border border-border-light px-3 pb-4 pt-3 text-start align-top text-[15px] shadow-sm transition-all duration-300 ease-in-out hover:border-[#54b948] hover:shadow-lg"
+      style={{
+        transition: 'all 0.3s ease-in-out',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'linear-gradient(90deg, #54b9481a, #00aeef1a, #ec008c1a)';
+        e.currentTarget.style.transform = 'translateX(2px)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = '';
+        e.currentTarget.style.transform = '';
+      }}
       role="button"
       tabIndex={0}
       aria-labelledby={`card-title-${name}`}
