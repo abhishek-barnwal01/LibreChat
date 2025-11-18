@@ -71,7 +71,7 @@ export default function Header() {
           </div>
         </div>
         {!isSmallScreen && (
-          <div className="flex items-center gap-2 bg-black rounded">
+          <div className="flex items-center gap-2">
             <ExportAndShareMenu
               isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
             />
