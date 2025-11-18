@@ -35,9 +35,9 @@ export default function PromptsView() {
 
   return (
     <PromptGroupsProvider>
-      <div className="flex h-screen w-full flex-col bg-surface-primary p-0 lg:p-2">
+      <div className="flex h-screen w-full flex-col bg-white p-0 lg:p-2">
         <DashBreadcrumb />
-        <div className="flex w-full flex-grow flex-row divide-x overflow-hidden dark:divide-gray-600">
+        <div className="flex w-full flex-grow flex-row divide-x divide-gray-200 overflow-hidden">
           <GroupSidePanel isDetailView={isDetailView}>
             <div className="mt-1 flex flex-row items-center justify-between px-2 md:px-2">
               <FilterPrompts />
@@ -45,7 +45,7 @@ export default function PromptsView() {
           </GroupSidePanel>
           <div
             className={cn(
-              'scrollbar-gutter-stable w-full overflow-y-auto lg:w-3/4 xl:w-3/4',
+              'scrollbar-gutter-stable w-full overflow-y-auto bg-white lg:w-3/4 xl:w-3/4',
               isDetailView ? 'block' : 'hidden md:block',
             )}
           >
