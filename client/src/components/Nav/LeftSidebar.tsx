@@ -138,17 +138,8 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
 
   return (
     <div className="flex h-full flex-col bg-white">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 p-4">
+      <div className="flex-shrink-0 border-b border-gray-200 p-4">
         <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
-        <Button
-          size="icon"
-          variant="outline"
-          onClick={onCollapse}
-          className="rounded-xl border border-gray-300 bg-white p-2 hover:bg-gray-100"
-          aria-label="Collapse sidebar"
-        >
-          <Sidebar />
-        </Button>
       </div>
 
       {/* Single scrollable content area for entire sidebar */}

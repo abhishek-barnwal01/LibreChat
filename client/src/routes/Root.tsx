@@ -162,6 +162,21 @@ export default function Root() {
                     <LeftSidebar onCollapse={toggleLeftSidebar} />
                   </aside>
 
+                  {/* Left Sidebar Toggle - Only show when open */}
+                  {navVisible && (
+                    <button
+                      onClick={toggleLeftSidebar}
+                      className="fixed z-50 flex h-12 w-8 items-center justify-center rounded-r-lg border border-l-0 border-gray-300 bg-white shadow-md transition-all duration-200 ease-in-out hover:bg-gray-100"
+                      style={{
+                        top: `calc(50% + ${bannerHeight / 2}px)`,
+                        left: '208px',
+                      }}
+                      aria-label="Close left sidebar"
+                    >
+                      <ChevronLeft className="h-5 w-5 text-gray-700" />
+                    </button>
+                  )}
+
                   {/* Center Chat Area */}
                   <main className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
                     <Outlet context={{ navVisible, setNavVisible } satisfies ContextType} />
