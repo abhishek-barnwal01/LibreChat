@@ -8,7 +8,7 @@ import { CodeVariableGfm } from './Markdown';
 import { useLocalize } from '~/hooks';
 
 const specialVariableClasses =
-  'bg-amber-100 text-yellow-800 border-yellow-600 dark:border-yellow-500/50 dark:bg-transparent dark:text-yellow-500/90';
+  'bg-amber-100 text-yellow-800 border-yellow-600';
 
 const components: {
   [nodeType: string]: React.ElementType;
@@ -28,8 +28,8 @@ const PromptVariables = ({
   }, [promptText]);
 
   return (
-    <div className="rounded-xl border border-border-light bg-transparent p-4 shadow-md">
-      <h3 className="flex items-center gap-2 py-2 text-lg font-semibold text-text-primary">
+    <div className="rounded-xl border border-gray-300 bg-white p-4 shadow-md">
+      <h3 className="flex items-center gap-2 py-2 text-lg font-semibold text-gray-900">
         <Variable className="icon-sm" aria-hidden="true" />
         {localize('com_ui_variables')}
       </h3>
@@ -39,7 +39,7 @@ const PromptVariables = ({
             {variables.map((variable, index) => (
               <span
                 className={cn(
-                  'rounded-full border border-border-light px-3 py-1 text-text-primary',
+                  'rounded-full border border-gray-300 px-3 py-1 text-gray-900',
                   specialVariables[variable.toLowerCase()] != null ? specialVariableClasses : '',
                 )}
                 key={index}
@@ -51,31 +51,31 @@ const PromptVariables = ({
             ))}
           </div>
         ) : (
-          <div className="text-sm text-text-secondary">
-            <ReactMarkdown components={components} className="markdown prose dark:prose-invert">
+          <div className="text-sm text-gray-600">
+            <ReactMarkdown components={components} className="markdown prose">
               {localize('com_ui_variables_info')}
             </ReactMarkdown>
           </div>
         )}
-        <Separator className="my-3 text-text-primary" />
+        <Separator className="my-3 text-gray-900" />
         {showInfo && (
           <div className="space-y-4">
             <div>
-              <span className="text-sm font-medium text-text-primary">
+              <span className="text-sm font-medium text-gray-900">
                 {localize('com_ui_special_variables')}
               </span>
-              <span className="text-sm text-text-secondary">
-                <ReactMarkdown components={components} className="markdown prose dark:prose-invert">
+              <span className="text-sm text-gray-600">
+                <ReactMarkdown components={components} className="markdown prose">
                   {localize('com_ui_special_variables_more_info')}
                 </ReactMarkdown>
               </span>
             </div>
             <div>
-              <span className="text-sm font-medium text-text-primary">
+              <span className="text-sm font-medium text-gray-900">
                 {localize('com_ui_dropdown_variables')}
               </span>
-              <span className="text-sm text-text-secondary">
-                <ReactMarkdown components={components} className="markdown prose dark:prose-invert">
+              <span className="text-sm text-gray-600">
+                <ReactMarkdown components={components} className="markdown prose">
                   {localize('com_ui_dropdown_variables_info')}
                 </ReactMarkdown>
               </span>
