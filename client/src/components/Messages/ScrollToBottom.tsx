@@ -11,7 +11,7 @@ export default function ScrollToBottom({ scrollHandler }: Props) {
       className="premium-scroll-button absolute bottom-5 right-1/2 cursor-pointer border border-border-light bg-surface-secondary"
       aria-label="Scroll to bottom"
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-gray-500">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-gray-400">
         <path
           d="M17 13L12 18L7 13M12 6L12 17"
           stroke="currentColor"
