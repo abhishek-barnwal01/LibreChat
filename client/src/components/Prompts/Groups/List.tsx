@@ -50,8 +50,8 @@ export default function List({
         </div>
       )}
 
-      <div className={`flex-grow overflow-y-auto ${isChatRoute ? 'px-4' : ''}`} aria-label={localize('com_ui_prompt_groups')}>
-        <div className="overflow-y-auto overflow-x-hidden">
+      <div className={`flex-grow ${isChatRoute ? 'px-4' : 'overflow-y-auto'}`} aria-label={localize('com_ui_prompt_groups')}>
+        <div className={isChatRoute ? '' : 'overflow-y-auto overflow-x-hidden'}>
           {isLoading && isChatRoute && (
             <Skeleton className="my-2 flex h-[84px] w-full rounded-2xl border-0 px-3 pb-4 pt-3" />
           )}

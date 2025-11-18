@@ -47,19 +47,17 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
 
   return (
     <ChatFormProvider {...methods}>
-      <div className="flex h-full w-full flex-col overflow-hidden border-l border-gray-200 bg-white">
+      <div className="flex h-full w-full flex-col overflow-y-auto border-l border-gray-200 bg-white">
         {/* Prompts Section - Uses actual user prompts from database */}
-        <div className="w-full border-b border-gray-200 overflow-hidden">
-          <div className="w-full overflow-x-hidden">
-            <GroupSidePanel
-              isDetailView={false}
-              className="!w-full border-b-0 md:!min-w-0 lg:!w-full xl:!w-full"
-            />
-          </div>
+        <div className="w-full border-b border-gray-200">
+          <GroupSidePanel
+            isDetailView={false}
+            className="!w-full border-b-0 md:!min-w-0 lg:!w-full xl:!w-full"
+          />
         </div>
 
         {/* Suggested Prompts Section - Hardcoded system-wide suggestions */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
             <Sparkles className="h-4 w-4" />
             <span>Suggested Prompts</span>

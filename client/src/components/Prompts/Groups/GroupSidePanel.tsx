@@ -33,7 +33,7 @@ export default function GroupSidePanel({
       )}
     >
       {children}
-      <div className={cn('flex-grow overflow-y-auto', isChatRoute ? '' : 'px-2 md:px-0')}>
+      <div className={cn('flex-grow', isChatRoute ? '' : 'overflow-y-auto px-2 md:px-0')}>
         <List groups={promptGroups} isChatRoute={isChatRoute} isLoading={!!groupsQuery.isLoading} />
       </div>
       <div className={cn(isChatRoute ? '' : 'px-2 pb-3 pt-2 md:px-0')}>
