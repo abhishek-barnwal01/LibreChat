@@ -75,7 +75,7 @@ export default function Presentation({ children }: { children: React.ReactNode }
   }, [artifactsVisibility, artifacts]);
 
   return (
-    <DragDropWrapper className="relative flex w-full grow overflow-hidden bg-presentation">
+    <DragDropWrapper className="relative flex w-full grow overflow-hidden bg-white">
       <SidePanelProvider>
         <SidePanelGroup
           defaultLayout={defaultLayout}
