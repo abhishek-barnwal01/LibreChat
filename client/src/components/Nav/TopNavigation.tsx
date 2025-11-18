@@ -29,7 +29,7 @@ const TopNavigation = memo(({ onNewQuery }: TopNavigationProps) => {
         </div>
 
         {/* Center: Navigation Links */}
-        <div className="hidden items-center gap-6 md:flex">
+        <div className="hidden items-center gap-10 md:flex">
           {navItems.map((item) => (
             <a
               key={item.label}
