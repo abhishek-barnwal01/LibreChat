@@ -133,3 +133,31 @@ button[data-testid="send-button"] {
   @apply w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white shadow-md transition-all;
   background: linear-gradient(135deg, #10b981 0%, #a855f7 100%);
 }
+
+/* Force prose (markdown) elements to be dark on white background */
+.markdown.prose,
+.markdown.prose p,
+.markdown.prose h1,
+.markdown.prose h2,
+.markdown.prose h3,
+.markdown.prose h4,
+.markdown.prose h5,
+.markdown.prose h6,
+.markdown.prose li,
+.markdown.prose ol,
+.markdown.prose ul,
+.markdown.prose blockquote,
+.markdown.prose strong,
+.markdown.prose em,
+.markdown.prose span,
+.markdown.prose div {
+  color: #1f2937 !important; /* gray-800 */
+}
+
+.markdown.prose a {
+  color: #2563eb !important; /* blue-600 */
+}
+
+.markdown.prose code {
+  color: #1f2937 !important; /* gray-800 */
+}
