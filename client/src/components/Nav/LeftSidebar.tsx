@@ -140,8 +140,8 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
         <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
       </div>
 
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Scrollable content area for filters */}
+      <div className="flex-shrink-0 overflow-y-auto border-b border-gray-200">
         {/* Projects Section */}
         <CollapsibleSection
             title="Projects"
@@ -274,9 +274,21 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
             </div>
           </div>
         </CollapsibleSection>
+      </div>
 
-        {/* Chat History Section */}
-        <CollapsibleSection title="Chat History" defaultOpen={true}>
+      {/* Chat History Section - takes remaining space */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <button
+          type="button"
+          onClick={() => {}}
+          className="flex w-full items-center justify-between border-b border-gray-200 px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500"
+        >
+          <div className="flex items-center gap-2">
+            <ChevronDown className="h-3 w-3" />
+            <span>Chat History</span>
+          </div>
+        </button>
+        <div className="flex-1 overflow-hidden px-3">
           <Conversations
             conversations={conversations}
             moveToTop={moveToTop}
@@ -287,7 +299,7 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
             isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
             compact={true}
           />
-        </CollapsibleSection>
+        </div>
       </div>
     </div>
   );
