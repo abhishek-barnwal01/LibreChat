@@ -1,5 +1,6 @@
-import { memo, useState } from 'react';
-import { Bookmark, Sparkles, Trash2 } from 'lucide-react';
+import { memo } from 'react';
+import { Sparkles } from 'lucide-react';
+import GroupSidePanel from '~/components/Prompts/Groups/GroupSidePanel';
 import { cn } from '~/utils';
 
 interface Prompt {
@@ -11,11 +12,6 @@ interface Prompt {
 interface RightSidebarProps {
   onPromptClick?: (prompt: string) => void;
 }
-
-const myPromptsData: Prompt[] = [
-  { id: '1', text: 'Analyze quarterly sales trends' },
-  { id: '2', text: 'Compare regional performance' },
-];
 
 const suggestedPromptsData: Prompt[] = [
   { id: '3', text: 'What are the top 3 growing product categories in India?', category: 'MARKET TRENDS' },
@@ -30,12 +26,6 @@ const suggestedPromptsData: Prompt[] = [
 ];
 
 const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
-  const [myPrompts, setMyPrompts] = useState<Prompt[]>(myPromptsData);
-
-  const handleDeletePrompt = (id: string) => {
-    setMyPrompts((prev) => prev.filter((p) => p.id !== id));
-  };
-
   const groupedSuggestedPrompts = suggestedPromptsData.reduce(
     (acc, prompt) => {
       const category = prompt.category || 'OTHER';
@@ -50,40 +40,16 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto border-l border-gray-200 bg-white">
-      {/* My Prompts Section */}
-      <div className="border-b border-gray-200 p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <Bookmark className="h-4 w-4" />
-          <span>My Prompts</span>
-        </div>
-
-        <div className="space-y-2">
-          {myPrompts.map((prompt) => (
-            <div
-              key={prompt.id}
-              className="group flex items-start justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 transition-colors hover:border-gray-300 hover:bg-gray-100"
-            >
-              <button
-                type="button"
-                onClick={() => onPromptClick?.(prompt.text)}
-                className="flex-1 text-left text-sm text-gray-700"
-              >
-                {prompt.text}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeletePrompt(prompt.id)}
-                className="opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
+      {/* Prompts Section - Uses actual user prompts from database */}
+      <div className="border-b border-gray-200">
+        <GroupSidePanel
+          isDetailView={false}
+          className="border-b-0"
+        />
       </div>
 
-      {/* Suggested Prompts Section */}
-      <div className="flex-1 p-4">
+      {/* Suggested Prompts Section - Hardcoded system-wide suggestions */}
+      <div className="flex-1 overflow-y-auto p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
           <Sparkles className="h-4 w-4" />
           <span>Suggested Prompts</span>
