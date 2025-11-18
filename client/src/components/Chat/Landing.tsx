@@ -48,7 +48,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
           <Sparkles className="h-8 w-8 text-gray-400" />
         </div>
         <h2 className="mb-2 text-2xl font-semibold text-gray-900">Start a conversation</h2>
-        <p className="max-w-md text-center text-sm text-gray-500">
+        <p className="mb-8 text-center text-sm text-gray-800">
           {description || 'Ask questions about your CMI data, upload files for analysis, or explore insights.'}
         </p>
       </div>
