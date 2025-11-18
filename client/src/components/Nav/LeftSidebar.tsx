@@ -6,8 +6,8 @@ import {
   FolderOpen,
   Upload,
   Link as LinkIcon,
-  PanelLeft,
 } from 'lucide-react';
+import { Sidebar } from '@librechat/client';
 import { useRecoilValue } from 'recoil';
 import { cn } from '~/utils';
 import { Conversations } from '~/components/Conversations';
@@ -142,10 +142,10 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
         <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
         <button
           onClick={onCollapse}
-          className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white shadow-sm hover:bg-gray-100"
+          className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white p-2 shadow-sm hover:bg-gray-100"
           aria-label="Collapse sidebar"
         >
-          <PanelLeft className="h-4 w-4 text-gray-700" />
+          <Sidebar />
         </button>
       </div>
 
