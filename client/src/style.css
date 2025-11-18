@@ -125,7 +125,7 @@ html {
 }
 .dark {
   --brand-purple: #ab68ff;
-  --presentation: var(--gray-800);
+  --presentation: var(--white);
   --text-primary: var(--gray-100);
   --text-secondary: var(--gray-300);
   --text-secondary-alt: var(--gray-400);
