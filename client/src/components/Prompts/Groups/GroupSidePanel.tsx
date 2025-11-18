@@ -26,7 +26,8 @@ export default function GroupSidePanel({
   return (
     <div
       className={cn(
-        'flex h-full w-full flex-col gap-2 md:mr-2 md:w-auto md:min-w-72 lg:w-1/4 xl:w-1/4',
+        'flex h-full w-full flex-col md:mr-2 md:w-auto md:min-w-72 lg:w-1/4 xl:w-1/4',
+        isChatRoute ? '' : 'gap-2',
         isDetailView === true && isSmallerScreen ? 'hidden' : '',
         className,
       )}

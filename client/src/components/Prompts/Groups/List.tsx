@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Plus, Bookmark } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Skeleton } from '@librechat/client';
 import { PermissionTypes, Permissions } from 'librechat-data-provider';
@@ -29,7 +29,7 @@ export default function List({
   return (
     <div className="flex h-full flex-col">
       {hasCreateAccess && (
-        <div className="flex w-full justify-end">
+        <div className={`flex w-full justify-end ${isChatRoute ? 'px-4 pt-4' : ''}`}>
           <Button
             variant="outline"
             className={`w-full bg-transparent ${isChatRoute ? '' : 'mx-2'}`}
@@ -41,7 +41,16 @@ export default function List({
           </Button>
         </div>
       )}
-      <div className="flex-grow overflow-y-auto" aria-label={localize('com_ui_prompt_groups')}>
+
+      {/* My Prompts Header for Chat Route */}
+      {isChatRoute && (
+        <div className="mb-3 mt-4 flex items-center gap-2 px-4 text-sm font-semibold text-gray-900">
+          <Bookmark className="h-4 w-4" />
+          <span>My Prompts</span>
+        </div>
+      )}
+
+      <div className={`flex-grow overflow-y-auto ${isChatRoute ? 'px-4' : ''}`} aria-label={localize('com_ui_prompt_groups')}>
         <div className="overflow-y-auto overflow-x-hidden">
           {isLoading && isChatRoute && (
             <Skeleton className="my-2 flex h-[84px] w-full rounded-2xl border-0 px-3 pb-4 pt-3" />

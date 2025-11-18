@@ -22,7 +22,7 @@ function PanelNavigation({
   const localize = useLocalize();
 
   return (
-    <div className="flex items-center justify-between">
+    <div className={`flex items-center justify-between ${isChatRoute ? 'px-4 pb-4' : ''}`}>
       <div className="flex gap-2">
         {!isChatRoute && <ThemeSelector returnThemeOnly={true} />}
         {children}
