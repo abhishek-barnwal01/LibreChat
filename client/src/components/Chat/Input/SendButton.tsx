@@ -15,28 +15,26 @@ const SubmitButton = React.memo(
   forwardRef((props: { disabled: boolean }, ref: React.ForwardedRef<HTMLButtonElement>) => {
     const localize = useLocalize();
     return (
-      <div className="mb-0.5">
-        <TooltipAnchor
-          description={localize('com_nav_send_message')}
-          render={
-            <button
-              ref={ref}
-              aria-label={localize('com_nav_send_message')}
-              id="send-button"
-              disabled={props.disabled}
-              className={cn(
-                'rounded-full bg-gray-400 p-2 text-white outline-offset-4 transition-all duration-200 hover:bg-gray-500 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:opacity-50',
-              )}
-              data-testid="send-button"
-              type="submit"
-            >
-              <span className="" data-state="closed">
-                <SendHorizontal className="h-5 w-5" />
-              </span>
-            </button>
-          }
-        />
-      </div>
+      <TooltipAnchor
+        description={localize('com_nav_send_message')}
+        render={
+          <button
+            ref={ref}
+            aria-label={localize('com_nav_send_message')}
+            id="send-button"
+            disabled={props.disabled}
+            className={cn(
+              'rounded-full bg-gray-400 p-2 text-white outline-offset-4 transition-all duration-200 hover:bg-gray-500 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:opacity-50',
+            )}
+            data-testid="send-button"
+            type="submit"
+          >
+            <span className="" data-state="closed">
+              <SendHorizontal className="h-5 w-5" />
+            </span>
+          </button>
+        }
+      />
     );
   }),
 );
