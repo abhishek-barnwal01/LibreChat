@@ -24,7 +24,7 @@ import { TermsAndConditionsModal } from '~/components/ui';
 import TopNavigation from '~/components/Nav/TopNavigation';
 import LeftSidebar from '~/components/Nav/LeftSidebar';
 import RightSidebar from '~/components/Nav/RightSidebar';
-import NavToggle from '~/components/Nav/NavToggle';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
 import { clearMessagesCache } from '~/utils';
@@ -41,8 +41,6 @@ export default function Root() {
     const savedRightSidebarVisible = localStorage.getItem('rightSidebarVisible');
     return savedRightSidebarVisible !== null ? JSON.parse(savedRightSidebarVisible) : true;
   });
-  const [isHoveringLeft, setIsHoveringLeft] = useState(false);
-  const [isHoveringRight, setIsHoveringRight] = useState(false);
 
   const { isAuthenticated, logout } = useAuthContext();
   const navigate = useNavigate();
@@ -165,22 +163,21 @@ export default function Root() {
                   </aside>
 
                   {/* Left Sidebar Toggle */}
-                  <div
-                    className="fixed left-0 z-50 transition-all duration-200 ease-in-out"
+                  <button
+                    onClick={toggleLeftSidebar}
+                    className="fixed z-50 flex h-12 w-8 items-center justify-center rounded-r-lg border border-l-0 border-gray-300 bg-white shadow-md transition-all duration-200 ease-in-out hover:bg-gray-100"
                     style={{
                       top: `calc(50% + ${bannerHeight / 2}px)`,
-                      transform: navVisible ? 'translateX(208px)' : 'translateX(0)',
+                      left: navVisible ? '208px' : '0px',
                     }}
+                    aria-label={navVisible ? 'Close left sidebar' : 'Open left sidebar'}
                   >
-                    <NavToggle
-                      onToggle={toggleLeftSidebar}
-                      navVisible={navVisible}
-                      isHovering={isHoveringLeft}
-                      setIsHovering={setIsHoveringLeft}
-                      side="left"
-                      translateX={false}
-                    />
-                  </div>
+                    {navVisible ? (
+                      <ChevronLeft className="h-5 w-5 text-gray-700" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5 text-gray-700" />
+                    )}
+                  </button>
 
                   {/* Center Chat Area */}
                   <main className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
@@ -188,22 +185,21 @@ export default function Root() {
                   </main>
 
                   {/* Right Sidebar Toggle */}
-                  <div
-                    className="fixed z-50 transition-all duration-200 ease-in-out"
+                  <button
+                    onClick={toggleRightSidebar}
+                    className="fixed z-50 flex h-12 w-8 items-center justify-center rounded-l-lg border border-r-0 border-gray-300 bg-white shadow-md transition-all duration-200 ease-in-out hover:bg-gray-100"
                     style={{
-                      right: rightSidebarVisible ? '256px' : '0px',
                       top: `calc(50% + ${bannerHeight / 2}px)`,
+                      right: rightSidebarVisible ? '256px' : '0px',
                     }}
+                    aria-label={rightSidebarVisible ? 'Close right sidebar' : 'Open right sidebar'}
                   >
-                    <NavToggle
-                      onToggle={toggleRightSidebar}
-                      navVisible={rightSidebarVisible}
-                      isHovering={isHoveringRight}
-                      setIsHovering={setIsHoveringRight}
-                      side="right"
-                      translateX={false}
-                    />
-                  </div>
+                    {rightSidebarVisible ? (
+                      <ChevronRight className="h-5 w-5 text-gray-700" />
+                    ) : (
+                      <ChevronLeft className="h-5 w-5 text-gray-700" />
+                    )}
+                  </button>
 
                   {/* Right Sidebar */}
                   <aside
