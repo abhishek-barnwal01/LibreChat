@@ -82,7 +82,7 @@ const LeftSidebar = memo(({ conversationData }: LeftSidebarProps) => {
   }, [conversationData]);
 
   return (
-    <div className="flex h-full flex-col bg-gray-50">
+    <div className="flex h-full flex-col bg-white">
       <div className="border-b border-gray-200 p-4">
         <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
       </div>
