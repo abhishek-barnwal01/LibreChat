@@ -82,8 +82,8 @@ function DashGroupItemComponent({ group, instanceProjectId }: DashGroupItemProps
   return (
     <div
       className={cn(
-        'mx-2 my-2 flex cursor-pointer rounded-lg border border-border-light bg-surface-primary p-3 shadow-sm transition-all duration-300 ease-in-out hover:bg-surface-secondary',
-        params.promptId === group._id && 'bg-surface-hover',
+        'mx-2 my-2 flex cursor-pointer rounded-lg border border-gray-300 bg-white p-3 shadow-sm transition-all duration-300 ease-in-out hover:bg-gray-50',
+        params.promptId === group._id && 'bg-gray-100',
       )}
       onClick={handleContainerClick}
       onKeyDown={handleKeyDown}
@@ -95,7 +95,7 @@ function DashGroupItemComponent({ group, instanceProjectId }: DashGroupItemProps
         <div className="flex items-center gap-2 truncate pr-2">
           <CategoryIcon category={group.category ?? ''} className="icon-lg" aria-hidden="true" />
 
-          <Label className="text-md cursor-pointer truncate font-semibold text-text-primary">
+          <Label className="text-md cursor-pointer truncate font-semibold text-gray-900">
             {group.name}
           </Label>
         </div>
@@ -113,10 +113,10 @@ function DashGroupItemComponent({ group, instanceProjectId }: DashGroupItemProps
                 <Button
                   variant="ghost"
                   onClick={(e) => e.stopPropagation()}
-                  className="h-8 w-8 p-0 hover:bg-surface-hover"
+                  className="h-8 w-8 p-0 hover:bg-gray-100"
                   aria-label={localize('com_ui_rename_prompt') + ' ' + group.name}
                 >
-                  <Pen className="icon-sm text-text-primary" aria-hidden="true" />
+                  <Pen className="icon-sm text-gray-700" aria-hidden="true" />
                 </Button>
               </OGDialogTrigger>
               <OGDialogTemplate
@@ -151,11 +151,11 @@ function DashGroupItemComponent({ group, instanceProjectId }: DashGroupItemProps
               <OGDialogTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="h-8 w-8 p-0 hover:bg-surface-hover"
+                  className="h-8 w-8 p-0 hover:bg-gray-100"
                   onClick={(e) => e.stopPropagation()}
                   aria-label={localize('com_ui_delete_prompt') + ' ' + group.name}
                 >
-                  <TrashIcon className="icon-sm text-text-primary" aria-hidden="true" />
+                  <TrashIcon className="icon-sm text-gray-700" aria-hidden="true" />
                 </Button>
               </OGDialogTrigger>
               <OGDialogTemplate
