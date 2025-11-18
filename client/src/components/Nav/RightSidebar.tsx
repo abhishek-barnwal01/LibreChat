@@ -1,5 +1,8 @@
 import { memo } from 'react';
+import { useForm } from 'react-hook-form';
 import { Sparkles } from 'lucide-react';
+import type { ChatFormValues } from '~/common';
+import { ChatFormProvider } from '~/Providers';
 import GroupSidePanel from '~/components/Prompts/Groups/GroupSidePanel';
 import { cn } from '~/utils';
 
@@ -26,6 +29,10 @@ const suggestedPromptsData: Prompt[] = [
 ];
 
 const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
+  const methods = useForm<ChatFormValues>({
+    defaultValues: { text: '' },
+  });
+
   const groupedSuggestedPrompts = suggestedPromptsData.reduce(
     (acc, prompt) => {
       const category = prompt.category || 'OTHER';
@@ -39,45 +46,49 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
   );
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto border-l border-gray-200 bg-white">
-      {/* Prompts Section - Uses actual user prompts from database */}
-      <div className="border-b border-gray-200">
-        <GroupSidePanel
-          isDetailView={false}
-          className="border-b-0"
-        />
-      </div>
-
-      {/* Suggested Prompts Section - Hardcoded system-wide suggestions */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <Sparkles className="h-4 w-4" />
-          <span>Suggested Prompts</span>
+    <ChatFormProvider {...methods}>
+      <div className="flex h-full w-full flex-col overflow-hidden border-l border-gray-200 bg-white">
+        {/* Prompts Section - Uses actual user prompts from database */}
+        <div className="w-full border-b border-gray-200 overflow-hidden">
+          <div className="w-full overflow-x-hidden">
+            <GroupSidePanel
+              isDetailView={false}
+              className="!w-full border-b-0 md:!min-w-0 lg:!w-full xl:!w-full"
+            />
+          </div>
         </div>
 
-        <div className="space-y-6">
-          {Object.entries(groupedSuggestedPrompts).map(([category, prompts]) => (
-            <div key={category}>
-              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-                {category}
+        {/* Suggested Prompts Section - Hardcoded system-wide suggestions */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
+            <Sparkles className="h-4 w-4" />
+            <span>Suggested Prompts</span>
+          </div>
+
+          <div className="space-y-6">
+            {Object.entries(groupedSuggestedPrompts).map(([category, prompts]) => (
+              <div key={category}>
+                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                  {category}
+                </div>
+                <div className="space-y-2">
+                  {prompts.map((prompt) => (
+                    <button
+                      key={prompt.id}
+                      type="button"
+                      onClick={() => onPromptClick?.(prompt.text)}
+                      className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left text-sm text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50"
+                    >
+                      {prompt.text}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-2">
-                {prompts.map((prompt) => (
-                  <button
-                    key={prompt.id}
-                    type="button"
-                    onClick={() => onPromptClick?.(prompt.text)}
-                    className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left text-sm text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50"
-                  >
-                    {prompt.text}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </ChatFormProvider>
   );
 });
 
