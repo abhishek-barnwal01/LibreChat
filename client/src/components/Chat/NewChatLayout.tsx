@@ -35,24 +35,12 @@ const NewChatLayout = memo(() => {
   }, []);
 
   const handlePromptClick = useCallback((prompt: string) => {
-    // Navigate to new conversation
-    window.location.href = '/c/new';
-
-    // Wait for navigation, then set the prompt
-    setTimeout(() => {
-      const textarea = document.querySelector('textarea[id="prompt-textarea"]') as HTMLTextAreaElement;
-      if (textarea) {
-        // Set the value
-        textarea.value = prompt;
-
-        // Trigger React's onChange event to update form state
-        const event = new Event('input', { bubbles: true });
-        textarea.dispatchEvent(event);
-
-        // Focus the textarea
-        textarea.focus();
-      }
-    }, 100);
+    // Handle prompt selection - this would typically set the input value
+    const textarea = document.querySelector('textarea[id="prompt-textarea"]') as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.value = prompt;
+      textarea.focus();
+    }
   }, []);
 
   const hasMessages = useMemo(
