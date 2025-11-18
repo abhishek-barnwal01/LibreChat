@@ -140,8 +140,8 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
         <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
       </div>
 
-      {/* Single scrollable content area for entire sidebar */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Fixed filter sections - no scroll */}
+      <div className="flex-shrink-0 overflow-y-auto" style={{ maxHeight: '40vh' }}>
         {/* Projects Section */}
         <CollapsibleSection
             title="Projects"
@@ -274,22 +274,25 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
             </div>
           </div>
         </CollapsibleSection>
+      </div>
 
-        {/* Chat History Section */}
-        <CollapsibleSection title="Chat History" defaultOpen={true}>
-          <div style={{ height: '600px' }}>
-            <Conversations
-              conversations={conversations}
-              moveToTop={moveToTop}
-              toggleNav={handleToggleNav}
-              containerRef={listRef}
-              loadMoreConversations={loadMoreConversations}
-              isLoading={isFetchingNextPage || showLoading || isLoading}
-              isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
-              compact={true}
-            />
-          </div>
-        </CollapsibleSection>
+      {/* Chat History Section - takes remaining space */}
+      <div className="flex flex-1 flex-col overflow-hidden border-t border-gray-200">
+        <div className="flex items-center justify-between border-b border-gray-200 px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500">
+          <span>Chat History</span>
+        </div>
+        <div className="flex-1 px-3">
+          <Conversations
+            conversations={conversations}
+            moveToTop={moveToTop}
+            toggleNav={handleToggleNav}
+            containerRef={listRef}
+            loadMoreConversations={loadMoreConversations}
+            isLoading={isFetchingNextPage || showLoading || isLoading}
+            isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
+            compact={true}
+          />
+        </div>
       </div>
     </div>
   );
