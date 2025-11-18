@@ -277,18 +277,17 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
 
         {/* Chat History Section */}
         <CollapsibleSection title="Chat History" defaultOpen={true}>
-          <div style={{ height: '800px' }}>
-            <Conversations
-              conversations={conversations}
-              moveToTop={moveToTop}
-              toggleNav={handleToggleNav}
-              containerRef={listRef}
-              loadMoreConversations={loadMoreConversations}
-              isLoading={isFetchingNextPage || showLoading || isLoading}
-              isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
-              compact={true}
-            />
-          </div>
+          {conversations.length > 0 ? (
+            <div className="space-y-1">
+              {conversations.map((conversation) => (
+                <div key={conversation?.conversationId} className="text-sm text-gray-700">
+                  {conversation?.title || 'Untitled'}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">No conversations found</div>
+          )}
         </CollapsibleSection>
       </div>
     </div>
