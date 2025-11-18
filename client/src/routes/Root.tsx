@@ -100,7 +100,14 @@ export default function Root() {
   const handlePromptClick = useCallback((prompt: string) => {
     const textarea = document.querySelector('textarea[id="prompt-textarea"]') as HTMLTextAreaElement;
     if (textarea) {
+      // Set the value
       textarea.value = prompt;
+
+      // Trigger React's onChange event to update form state and enable send button
+      const event = new Event('input', { bubbles: true });
+      textarea.dispatchEvent(event);
+
+      // Focus the textarea
       textarea.focus();
     }
   }, []);
