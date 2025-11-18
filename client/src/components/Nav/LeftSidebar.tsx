@@ -144,21 +144,21 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
       <div className="flex-1 overflow-y-auto">
         {/* Projects Section */}
         <CollapsibleSection
-            title="Projects"
-            defaultOpen={true}
-            rightAction={
-              <button
-                type="button"
-                className="rounded p-0.5 hover:bg-gray-200"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Handle add project
-                }}
-              >
-                <Plus className="h-3 w-3" />
-              </button>
-            }
-          >
+          title="Projects"
+          defaultOpen={true}
+          rightAction={
+            <button
+              type="button"
+              className="rounded p-0.5 hover:bg-gray-200"
+              onClick={(e) => {
+                e.stopPropagation();
+                // Handle add project
+              }}
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          }
+        >
           <button
             type="button"
             onClick={() => setSelectedProject('default')}
@@ -277,17 +277,18 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
 
         {/* Chat History Section */}
         <CollapsibleSection title="Chat History" defaultOpen={true}>
-          {conversations.length > 0 ? (
-            <div className="space-y-1">
-              {conversations.map((conversation) => (
-                <div key={conversation?.conversationId} className="text-sm text-gray-700">
-                  {conversation?.title || 'Untitled'}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-sm text-gray-500">No conversations found</div>
-          )}
+          <div style={{ height: '800px' }}>
+            <Conversations
+              conversations={conversations}
+              moveToTop={moveToTop}
+              toggleNav={handleToggleNav}
+              containerRef={listRef}
+              loadMoreConversations={loadMoreConversations}
+              isLoading={isFetchingNextPage || showLoading || isLoading}
+              isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
+              compact={true}
+            />
+          </div>
         </CollapsibleSection>
       </div>
     </div>
