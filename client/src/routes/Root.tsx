@@ -19,7 +19,7 @@ import {
   SetConvoProvider,
   FileMapContext,
 } from '~/Providers';
-import { useUserTermsQuery, useGetStartupConfig, useConversationsInfiniteQuery } from '~/data-provider';
+import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
 import { TermsAndConditionsModal } from '~/components/ui';
 import TopNavigation from '~/components/Nav/TopNavigation';
 import LeftSidebar from '~/components/Nav/LeftSidebar';
@@ -39,22 +39,11 @@ export default function Root() {
 
   const { isAuthenticated, logout } = useAuthContext();
   const navigate = useNavigate();
-  const search = useRecoilValue(store.search);
   const queryClient = useQueryClient();
   const index = 0;
   const { conversation } = store.useCreateConversationAtom(index);
   const { newConversation } = useNewConvo(index);
 
-  const { data: conversationData } = useConversationsInfiniteQuery(
-    {
-      search: search.debouncedQuery || undefined,
-    },
-    {
-      enabled: isAuthenticated,
-      staleTime: 30000,
-      cacheTime: 300000,
-    },
-  );
 
   // Global health check - runs once per authenticated session
   useHealthCheck(isAuthenticated);
@@ -145,7 +134,7 @@ export default function Root() {
                 <div className="flex flex-1 overflow-hidden">
                   {/* Left Sidebar */}
                   <aside className="w-52 flex-shrink-0 border-r border-gray-200">
-                    <LeftSidebar conversationData={conversationData} />
+                    <LeftSidebar />
                   </aside>
 
                   {/* Center Chat Area */}

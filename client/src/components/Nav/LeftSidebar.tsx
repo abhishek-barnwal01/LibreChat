@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useRef } from 'react';
+import { memo, useState, useMemo, useRef, useCallback } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -7,12 +7,15 @@ import {
   Upload,
   Link as LinkIcon,
 } from 'lucide-react';
+import { useRecoilValue } from 'recoil';
 import { cn } from '~/utils';
 import { Conversations } from '~/components/Conversations';
-import type { ConversationListResponse } from 'librechat-data-provider';
+import { useConversationsInfiniteQuery } from '~/data-provider';
+import { useNavScrolling } from '~/hooks';
+import store from '~/store';
 
 interface LeftSidebarProps {
-  conversationData?: { pages: ConversationListResponse[] };
+  toggleNav?: () => void;
 }
 
 interface CollapsibleSectionProps {
@@ -70,16 +73,66 @@ const PillButton = memo(({ children, selected = false, onClick }: PillButtonProp
 
 PillButton.displayName = 'PillButton';
 
-const LeftSidebar = memo(({ conversationData }: LeftSidebarProps) => {
+const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
   const [selectedProject, setSelectedProject] = useState('default');
   const [selectedDataset, setSelectedDataset] = useState('household');
   const [selectedGeography, setSelectedGeography] = useState('india');
+  const [tags, setTags] = useState<string[]>([]);
+  const [showLoading, setShowLoading] = useState(false);
   const listRef = useRef<any>(null);
+
+  const search = useRecoilValue(store.search);
+
+  // Fetch conversations with infinite query
+  const { data, fetchNextPage, isFetchingNextPage, isLoading, isFetching } =
+    useConversationsInfiniteQuery(
+      {
+        tags: tags.length === 0 ? undefined : tags,
+        search: search.debouncedQuery || undefined,
+      },
+      {
+        enabled: true,
+        staleTime: 30000,
+        cacheTime: 300000,
+      },
+    );
+
+  const computedHasNextPage = useMemo(() => {
+    if (data?.pages && data.pages.length > 0) {
+      const lastPage = data.pages[data.pages.length - 1];
+      return lastPage.nextCursor !== null;
+    }
+    return false;
+  }, [data?.pages]);
+
+  const { moveToTop } = useNavScrolling({
+    setShowLoading,
+    fetchNextPage: async (options?) => {
+      if (computedHasNextPage) {
+        return fetchNextPage(options);
+      }
+      return Promise.resolve({} as any);
+    },
+    isFetchingNext: isFetchingNextPage,
+  });
 
   // Flatten conversations from pages structure
   const conversations = useMemo(() => {
-    return conversationData ? conversationData.pages.flatMap((page) => page.conversations) : [];
-  }, [conversationData]);
+    return data ? data.pages.flatMap((page) => page.conversations) : [];
+  }, [data]);
+
+  const loadMoreConversations = useCallback(() => {
+    if (isFetchingNextPage || !computedHasNextPage) {
+      return;
+    }
+    fetchNextPage();
+  }, [isFetchingNextPage, computedHasNextPage, fetchNextPage]);
+
+  const handleToggleNav = useCallback(() => {
+    if (toggleNav) {
+      toggleNav();
+    }
+  }, [toggleNav]);
 
   return (
     <div className="flex h-full flex-col bg-white">
@@ -224,20 +277,16 @@ const LeftSidebar = memo(({ conversationData }: LeftSidebarProps) => {
 
         {/* Chat History Section */}
         <CollapsibleSection title="Chat History" defaultOpen={true}>
-          {conversations.length > 0 ? (
-            <Conversations
-              conversations={conversations}
-              moveToTop={() => {}}
-              toggleNav={() => {}}
-              containerRef={listRef}
-              loadMoreConversations={() => {}}
-              isLoading={false}
-              isSearchLoading={false}
-              compact={true}
-            />
-          ) : (
-            <div className="text-sm text-gray-500">No conversations found</div>
-          )}
+          <Conversations
+            conversations={conversations}
+            moveToTop={moveToTop}
+            toggleNav={handleToggleNav}
+            containerRef={listRef}
+            loadMoreConversations={loadMoreConversations}
+            isLoading={isFetchingNextPage || showLoading || isLoading}
+            isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
+            compact={true}
+          />
         </CollapsibleSection>
       </div>
     </div>
