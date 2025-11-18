@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useRecoilValue } from 'recoil';
+import { useQueryClient } from '@tanstack/react-query';
+import { QueryKeys } from 'librechat-data-provider';
 import type { ContextType } from '~/common';
 import {
   useSearchEnabled,
@@ -8,6 +10,7 @@ import {
   useAuthContext,
   useAgentsMap,
   useFileMap,
+  useNewConvo,
 } from '~/hooks';
 import {
   PromptGroupsProvider,
@@ -23,6 +26,7 @@ import LeftSidebar from '~/components/Nav/LeftSidebar';
 import RightSidebar from '~/components/Nav/RightSidebar';
 import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
+import { clearMessagesCache } from '~/utils';
 import store from '~/store';
 
 export default function Root() {
@@ -36,6 +40,10 @@ export default function Root() {
   const { isAuthenticated, logout } = useAuthContext();
   const navigate = useNavigate();
   const search = useRecoilValue(store.search);
+  const queryClient = useQueryClient();
+  const index = 0;
+  const { conversation } = store.useCreateConversationAtom(index);
+  const { newConversation } = useNewConvo(index);
 
   const { data: conversationData } = useConversationsInfiniteQuery(
     {
@@ -78,8 +86,16 @@ export default function Root() {
   };
 
   const handleNewQuery = useCallback(() => {
-    navigate('/c/new');
-  }, [navigate]);
+    // Clear messages cache and invalidate queries
+    clearMessagesCache(queryClient, conversation?.conversationId);
+    queryClient.invalidateQueries([QueryKeys.messages]);
+
+    // Create new conversation in state
+    newConversation();
+
+    // Navigate to new chat
+    navigate('/c/new', { state: { focusChat: true } });
+  }, [queryClient, conversation, newConversation, navigate]);
 
   const handlePromptClick = useCallback((prompt: string) => {
     const textarea = document.querySelector('textarea[id="prompt-textarea"]') as HTMLTextAreaElement;

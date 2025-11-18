@@ -33,11 +33,6 @@ export default function ChatRoute() {
   const { hasSetConversation, conversation } = store.useCreateConversationAtom(index);
   const { newConversation } = useNewConvo();
 
-  // Reset hasSetConversation when conversationId changes
-  useEffect(() => {
-    hasSetConversation.current = false;
-  }, [conversationId, hasSetConversation]);
-
   const modelsQuery = useGetModelsQuery({
     enabled: isAuthenticated,
     refetchOnMount: 'always',
