@@ -2,11 +2,11 @@ import { memo, useState, useMemo, useRef, useCallback } from 'react';
 import {
   ChevronDown,
   ChevronRight,
-  ChevronLeft,
   Plus,
   FolderOpen,
   Upload,
   Link as LinkIcon,
+  PanelLeftClose,
 } from 'lucide-react';
 import { useRecoilValue } from 'recoil';
 import { cn } from '~/utils';
@@ -142,10 +142,10 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
         <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
         <button
           onClick={onCollapse}
-          className="rounded p-1 hover:bg-gray-100"
+          className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white shadow-sm hover:bg-gray-100"
           aria-label="Collapse sidebar"
         >
-          <ChevronLeft className="h-5 w-5 text-gray-700" />
+          <PanelLeftClose className="h-4 w-4 text-gray-700" />
         </button>
       </div>
 
