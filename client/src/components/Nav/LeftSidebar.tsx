@@ -6,7 +6,7 @@ import {
   FolderOpen,
   Upload,
   Link as LinkIcon,
-  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 import { useRecoilValue } from 'recoil';
 import { cn } from '~/utils';
@@ -145,7 +145,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
           className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white shadow-sm hover:bg-gray-100"
           aria-label="Collapse sidebar"
         >
-          <PanelLeftClose className="h-4 w-4 text-gray-700" />
+          <PanelLeft className="h-4 w-4 text-gray-700" />
         </button>
       </div>
 
