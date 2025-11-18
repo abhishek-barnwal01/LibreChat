@@ -136,12 +136,12 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
 
   return (
     <div className="flex h-full flex-col bg-white">
-      <div className="border-b border-gray-200 p-4">
+      <div className="flex-shrink-0 border-b border-gray-200 p-4">
         <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
       </div>
 
-      {/* Scrollable content area for filters */}
-      <div className="flex-shrink-0 overflow-y-auto border-b border-gray-200">
+      {/* Single scrollable content area for entire sidebar */}
+      <div className="flex-1 overflow-y-auto">
         {/* Projects Section */}
         <CollapsibleSection
             title="Projects"
@@ -274,31 +274,27 @@ const LeftSidebar = memo(({ toggleNav }: LeftSidebarProps) => {
             </div>
           </div>
         </CollapsibleSection>
-      </div>
 
-      {/* Chat History Section - takes remaining space */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <button
-          type="button"
-          onClick={() => {}}
-          className="flex w-full items-center justify-between border-b border-gray-200 px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500"
-        >
-          <div className="flex items-center gap-2">
-            <ChevronDown className="h-3 w-3" />
-            <span>Chat History</span>
+        {/* Chat History Section */}
+        <div className="border-b border-gray-200 py-3">
+          <div className="mb-3 flex items-center justify-between px-3 text-xs font-medium uppercase tracking-wide text-gray-500">
+            <div className="flex items-center gap-2">
+              <ChevronDown className="h-3 w-3" />
+              <span>Chat History</span>
+            </div>
           </div>
-        </button>
-        <div className="flex-1 overflow-hidden px-3">
-          <Conversations
-            conversations={conversations}
-            moveToTop={moveToTop}
-            toggleNav={handleToggleNav}
-            containerRef={listRef}
-            loadMoreConversations={loadMoreConversations}
-            isLoading={isFetchingNextPage || showLoading || isLoading}
-            isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
-            compact={true}
-          />
+          <div className="h-[500px] px-3">
+            <Conversations
+              conversations={conversations}
+              moveToTop={moveToTop}
+              toggleNav={handleToggleNav}
+              containerRef={listRef}
+              loadMoreConversations={loadMoreConversations}
+              isLoading={isFetchingNextPage || showLoading || isLoading}
+              isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
+              compact={true}
+            />
+          </div>
         </div>
       </div>
     </div>
