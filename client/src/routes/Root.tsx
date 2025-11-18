@@ -166,9 +166,10 @@ export default function Root() {
 
                   {/* Left Sidebar Toggle */}
                   <div
-                    className="fixed left-0 z-20"
+                    className="fixed left-0 z-50 transition-all duration-200 ease-in-out"
                     style={{
-                      top: `calc(50vh + ${bannerHeight / 2}px)`,
+                      top: `calc(50% + ${bannerHeight / 2}px)`,
+                      transform: navVisible ? 'translateX(208px)' : 'translateX(0)',
                     }}
                   >
                     <NavToggle
@@ -177,7 +178,7 @@ export default function Root() {
                       isHovering={isHoveringLeft}
                       setIsHovering={setIsHoveringLeft}
                       side="left"
-                      translateX={true}
+                      translateX={false}
                     />
                   </div>
 
@@ -188,10 +189,10 @@ export default function Root() {
 
                   {/* Right Sidebar Toggle */}
                   <div
-                    className="fixed z-20 transition-all duration-200 ease-in-out"
+                    className="fixed z-50 transition-all duration-200 ease-in-out"
                     style={{
                       right: rightSidebarVisible ? '256px' : '0px',
-                      top: `calc(50vh + ${bannerHeight / 2}px)`,
+                      top: `calc(50% + ${bannerHeight / 2}px)`,
                     }}
                   >
                     <NavToggle
