@@ -24,10 +24,10 @@ const CodeBar: React.FC<CodeBarProps> = React.memo(
     const localize = useLocalize();
     const [isCopied, setIsCopied] = useState(false);
     return (
-      <div className="relative flex items-center justify-between rounded-tl-md rounded-tr-md bg-gray-100 px-4 py-2 font-sans text-xs text-gray-800 dark:bg-gray-100">
+      <div className="relative flex items-center justify-between rounded-tl-md rounded-tr-md bg-gray-700 px-4 py-2 font-sans text-xs text-gray-200 dark:bg-gray-700">
         <span className="">{lang}</span>
         {plugin === true ? (
-          <InfoIcon className="ml-auto flex h-4 w-4 gap-2 text-gray-500" />
+          <InfoIcon className="ml-auto flex h-4 w-4 gap-2 text-white/50" />
         ) : (
           <div className="flex items-center justify-center gap-4">
             {allowExecution === true && (
@@ -37,7 +37,7 @@ const CodeBar: React.FC<CodeBarProps> = React.memo(
               type="button"
               className={cn(
                 'ml-auto flex gap-2',
-                error === true ? 'h-4 w-4 items-start text-gray-500' : '',
+                error === true ? 'h-4 w-4 items-start text-white/50' : '',
               )}
               onClick={async () => {
                 const codeString = codeRef.current?.textContent;
@@ -118,7 +118,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
   const language = isNonCode ? 'json' : lang;
 
   return (
-    <div className="w-full rounded-md bg-gray-50 text-xs text-gray-800">
+    <div className="w-full rounded-md bg-gray-900 text-xs text-white/80">
       <CodeBar
         lang={lang}
         error={error}
@@ -139,11 +139,11 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
       </div>
       {allowExecution === true && toolCalls && toolCalls.length > 0 && (
         <>
-          <div className="bg-gray-100 p-4 text-xs">
+          <div className="bg-gray-700 p-4 text-xs">
             <div
-              className="prose flex flex-col-reverse text-gray-800"
+              className="prose flex flex-col-reverse text-white"
               style={{
-                color: '#1f2937',
+                color: 'white',
               }}
             >
               <pre className="shrink-0">
