@@ -297,7 +297,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
       </div>
 
       {/* Account Settings at bottom */}
-      <div className="flex-shrink-0 border-t border-border-light p-2">
+      <div className="px-3 pb-2">
         <Suspense fallback={null}>
           <AccountSettings />
         </Suspense>
