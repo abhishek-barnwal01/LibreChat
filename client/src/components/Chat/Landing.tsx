@@ -44,11 +44,11 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
       className={`flex h-full transform-gpu flex-col items-center justify-center pb-16 transition-all duration-200 ${centerFormOnLanding ? 'max-h-full sm:max-h-0' : 'max-h-full'}`}
     >
       <div className="flex flex-col items-center px-4">
-        <div className="mb-4 rounded-full bg-gray-100 p-4">
-          <Sparkles className="h-8 w-8 text-gray-400" />
+        <div className="mb-4 rounded-full bg-gray-100 p-4 dark:bg-gray-800">
+          <Sparkles className="h-8 w-8 text-gray-400 dark:text-gray-500" />
         </div>
-        <h2 className="mb-2 text-2xl font-semibold text-gray-900">Start a conversation</h2>
-        <p className="mb-8 text-center text-sm text-gray-800">
+        <h2 className="mb-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">Start a conversation</h2>
+        <p className="mb-8 text-center text-sm text-gray-800 dark:text-gray-300">
           {description || 'Ask questions about your CMI data, upload files for analysis, or explore insights.'}
         </p>
       </div>
