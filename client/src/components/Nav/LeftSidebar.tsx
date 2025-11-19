@@ -290,7 +290,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
               loadMoreConversations={loadMoreConversations}
               isLoading={isFetchingNextPage || showLoading || isLoading}
               isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
-              compact={true}
+              compact={false}
             />
           </div>
         </CollapsibleSection>
