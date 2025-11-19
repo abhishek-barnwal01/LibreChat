@@ -34,11 +34,11 @@ const CollapsibleSection = memo(
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     return (
-      <div className="border-b border-gray-200 py-3">
+      <div className="border-b border-border-light py-3">
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex w-full items-center justify-between px-3 text-xs font-medium uppercase tracking-wide text-gray-500"
+          className="flex w-full items-center justify-between px-3 text-xs font-medium uppercase tracking-wide text-text-secondary"
         >
           <div className="flex items-center gap-2">
             {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
@@ -67,8 +67,8 @@ const PillButton = memo(({ children, selected = false, onClick }: PillButtonProp
     className={cn(
       'rounded-full border px-4 py-1.5 text-sm transition-colors',
       selected
-        ? 'border-black bg-black text-white'
-        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
+        ? 'border-text-primary bg-text-primary text-white dark:border-white dark:bg-white dark:text-black'
+        : 'border-border-medium bg-surface-primary text-text-primary hover:bg-surface-hover',
     )}
   >
     {children}
@@ -139,9 +139,9 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
   }, [toggleNav]);
 
   return (
-    <div className="flex h-full flex-col bg-white">
-      <div className="flex-shrink-0 border-b border-gray-200 p-4">
-        <h2 className="text-lg font-semibold text-gray-900">CMI Data Assistant</h2>
+    <div className="flex h-full flex-col bg-surface-primary">
+      <div className="flex-shrink-0 border-b border-border-light p-4">
+        <h2 className="text-lg font-semibold text-text-primary">CMI Data Assistant</h2>
       </div>
 
       {/* Single scrollable content area for entire sidebar */}
@@ -153,7 +153,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
           rightAction={
             <button
               type="button"
-              className="rounded p-0.5 hover:bg-gray-200"
+              className="rounded p-0.5 hover:bg-surface-hover"
               onClick={(e) => {
                 e.stopPropagation();
                 // Handle add project
@@ -170,7 +170,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
               'w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all',
               selectedProject === 'default'
                 ? 'bg-gradient-to-r from-green-500 to-purple-500 text-white shadow-md'
-                : 'bg-white text-gray-700 hover:bg-gray-100',
+                : 'bg-surface-primary text-text-primary hover:bg-surface-hover',
             )}
           >
             Default Project
@@ -182,21 +182,21 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
           <div className="space-y-2">
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface-hover"
             >
               <FolderOpen className="h-4 w-4" />
               <span>Knowledge Base</span>
             </button>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface-hover"
             >
               <Upload className="h-4 w-4" />
               <span>Uploaded Files</span>
             </button>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface-hover"
             >
               <LinkIcon className="h-4 w-4" />
               <span>Link SharePoint</span>
@@ -211,7 +211,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
           rightAction={
             <button
               type="button"
-              className="text-xs font-normal text-blue-600 hover:underline"
+              className="text-xs font-normal text-blue-500 hover:underline dark:text-blue-400"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedDataset('household');
@@ -225,7 +225,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
           <div className="space-y-4">
             {/* Datasets */}
             <div>
-              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
                 Datasets
               </div>
               <div className="flex flex-wrap gap-2">
@@ -252,7 +252,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
 
             {/* Geography */}
             <div>
-              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
                 Geography
               </div>
               <div className="flex flex-wrap gap-2">
@@ -297,7 +297,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
       </div>
 
       {/* Account Settings at bottom */}
-      <div className="flex-shrink-0 border-t border-gray-200 p-2">
+      <div className="flex-shrink-0 border-t border-border-light p-2">
         <Suspense fallback={null}>
           <AccountSettings />
         </Suspense>

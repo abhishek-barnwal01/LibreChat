@@ -47,9 +47,9 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
 
   return (
     <ChatFormProvider {...methods}>
-      <div className="flex h-full w-full flex-col overflow-y-auto border-l border-gray-200 bg-white">
+      <div className="flex h-full w-full flex-col overflow-y-auto border-l border-border-light bg-surface-primary">
         {/* Prompts Section - Uses actual user prompts from database */}
-        <div className="w-full border-b border-gray-200">
+        <div className="w-full border-b border-border-light">
           <GroupSidePanel
             isDetailView={false}
             className="!w-full border-b-0 md:!min-w-0 lg:!w-full xl:!w-full"
@@ -59,7 +59,7 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
 
         {/* Suggested Prompts Section - Hardcoded system-wide suggestions */}
         <div className="p-4">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-text-primary">
             <Sparkles className="h-4 w-4" />
             <span>Suggested Prompts</span>
           </div>
@@ -67,7 +67,7 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
           <div className="space-y-6">
             {Object.entries(groupedSuggestedPrompts).map(([category, prompts]) => (
               <div key={category}>
-                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
                   {category}
                 </div>
                 <div className="space-y-2">
@@ -76,7 +76,7 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
                       key={prompt.id}
                       type="button"
                       onClick={() => onPromptClick?.(prompt.text)}
-                      className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left text-sm text-gray-700 transition-all duration-300 hover:border-[#54b948] hover:shadow-lg"
+                      className="w-full rounded-lg border border-border-medium bg-surface-primary p-3 text-left text-sm text-text-primary transition-all duration-300 hover:border-[#54b948] hover:shadow-lg"
                       style={{
                         transition: 'all 0.3s ease-in-out',
                       }}

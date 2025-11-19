@@ -145,7 +145,7 @@ export default function Root() {
           <AgentsMapContext.Provider value={agentsMap}>
             <PromptGroupsProvider>
               <Banner onHeightChange={setBannerHeight} />
-              <div className="flex flex-col bg-white" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
+              <div className="flex flex-col bg-surface-primary" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
                 {/* Top Navigation */}
                 <TopNavigation onNewQuery={handleNewQuery} />
 
@@ -153,7 +153,7 @@ export default function Root() {
                 <div className="flex flex-1 overflow-hidden">
                   {/* Left Sidebar */}
                   <aside
-                    className="flex-shrink-0 border-r border-gray-200 transition-all duration-200 ease-in-out"
+                    className="flex-shrink-0 border-r border-border-light transition-all duration-200 ease-in-out"
                     style={{
                       width: navVisible ? '208px' : '0px',
                       opacity: navVisible ? 1 : 0,
@@ -166,14 +166,14 @@ export default function Root() {
                   {navVisible && (
                     <button
                       onClick={toggleLeftSidebar}
-                      className="fixed z-50 cursor-pointer transition-opacity hover:opacity-70"
+                      className="fixed z-50 cursor-pointer text-text-primary transition-opacity hover:opacity-70"
                       style={{
                         top: `calc(50% + ${bannerHeight / 2}px)`,
                         left: '208px',
                       }}
                       aria-label="Close left sidebar"
                     >
-                      <ChevronLeft className="h-6 w-6 text-gray-700" />
+                      <ChevronLeft className="h-6 w-6" />
                     </button>
                   )}
 
@@ -185,7 +185,7 @@ export default function Root() {
                   {/* Right Sidebar Toggle */}
                   <button
                     onClick={toggleRightSidebar}
-                    className="fixed z-50 cursor-pointer transition-opacity hover:opacity-70"
+                    className="fixed z-50 cursor-pointer text-text-primary transition-opacity hover:opacity-70"
                     style={{
                       top: `calc(50% + ${bannerHeight / 2}px)`,
                       right: rightSidebarVisible ? '256px' : '0px',
@@ -193,9 +193,9 @@ export default function Root() {
                     aria-label={rightSidebarVisible ? 'Close right sidebar' : 'Open right sidebar'}
                   >
                     {rightSidebarVisible ? (
-                      <ChevronRight className="h-6 w-6 text-gray-700" />
+                      <ChevronRight className="h-6 w-6" />
                     ) : (
-                      <ChevronLeft className="h-6 w-6 text-gray-700" />
+                      <ChevronLeft className="h-6 w-6" />
                     )}
                   </button>
 
