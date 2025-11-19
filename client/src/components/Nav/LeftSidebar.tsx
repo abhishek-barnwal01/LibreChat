@@ -281,7 +281,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
 
         {/* Chat History Section */}
         <CollapsibleSection title="Chat History" defaultOpen={true}>
-          <div style={{ height: '800px' }}>
+          <div style={{ minHeight: '300px', maxHeight: '600px' }}>
             <Conversations
               conversations={conversations}
               moveToTop={moveToTop}
