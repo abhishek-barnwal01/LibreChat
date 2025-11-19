@@ -1,6 +1,7 @@
 import { Search, Sparkles } from 'lucide-react';
 import { memo } from 'react';
 import { cn } from '~/utils';
+import AccountSettings from './AccountSettings';
 
 interface TopNavigationProps {
   onNewQuery?: () => void;
@@ -41,7 +42,7 @@ const TopNavigation = memo(({ onNewQuery }: TopNavigationProps) => {
           ))}
         </div>
 
-        {/* Right: Quick Search and New Query */}
+        {/* Right: Quick Search, New Query, and Profile */}
         <div className="flex items-center gap-4">
           <button
             type="button"
@@ -59,6 +60,9 @@ const TopNavigation = memo(({ onNewQuery }: TopNavigationProps) => {
             <Sparkles className="h-4 w-4" />
             <span>New Query</span>
           </button>
+
+          {/* User Profile Menu */}
+          <AccountSettings />
         </div>
       </div>
     </nav>
