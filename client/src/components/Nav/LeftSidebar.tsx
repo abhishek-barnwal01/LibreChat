@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useRef, useCallback } from 'react';
+import { memo, useState, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -14,6 +14,8 @@ import { Conversations } from '~/components/Conversations';
 import { useConversationsInfiniteQuery } from '~/data-provider';
 import { useNavScrolling } from '~/hooks';
 import store from '~/store';
+
+const AccountSettings = lazy(() => import('./AccountSettings'));
 
 interface LeftSidebarProps {
   toggleNav?: () => void;
@@ -292,6 +294,13 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
             />
           </div>
         </CollapsibleSection>
+      </div>
+
+      {/* Account Settings at bottom */}
+      <div className="flex-shrink-0 border-t border-gray-200 p-2">
+        <Suspense fallback={null}>
+          <AccountSettings />
+        </Suspense>
       </div>
     </div>
   );

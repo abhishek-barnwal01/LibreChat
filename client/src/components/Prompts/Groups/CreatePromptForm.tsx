@@ -115,7 +115,7 @@ const CreatePromptForm = ({
                   <Input
                     {...field}
                     type="text"
-                    className="mr-2 w-full border border-gray-300 bg-white p-2 text-2xl text-gray-900 placeholder:text-gray-400"
+                    className="mr-2 w-full border border-border-medium p-2 text-2xl text-text-primary placeholder:text-text-tertiary dark:placeholder:text-text-secondary"
                     placeholder={`${localize('com_ui_prompt_name')}*`}
                     tabIndex={0}
                   />
@@ -135,11 +135,11 @@ const CreatePromptForm = ({
         </div>
         <div className="flex w-full flex-col gap-4 md:mt-[1.075rem]">
           <div>
-            <h2 className="flex items-center justify-between rounded-t-lg border border-gray-300 bg-gray-50 py-2 pl-4 pr-1 text-base font-semibold text-gray-900">
+            <h2 className="flex items-center justify-between rounded-t-lg border border-border-medium py-2 pl-4 pr-1 text-base font-semibold dark:text-gray-200">
               <span>{localize('com_ui_prompt_text')}*</span>
               <VariablesDropdown fieldName="prompt" className="mr-2" />
             </h2>
-            <div className="min-h-32 rounded-b-lg border border-gray-300 bg-white p-4 transition-all duration-150">
+            <div className="min-h-32 rounded-b-lg border border-border-medium p-4 transition-all duration-150">
               <Controller
                 name="prompt"
                 control={control}
@@ -148,7 +148,7 @@ const CreatePromptForm = ({
                   <div>
                     <TextareaAutosize
                       {...field}
-                      className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded border border-border-medium px-2 py-1 focus:outline-none dark:bg-transparent dark:text-gray-200"
                       minRows={6}
                       tabIndex={0}
                       aria-label={localize('com_ui_prompt_input_field')}
