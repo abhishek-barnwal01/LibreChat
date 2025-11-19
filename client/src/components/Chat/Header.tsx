@@ -49,12 +49,12 @@ export default function Header() {
             }`}
           >
             <OpenSidebar setNavVisible={setNavVisible} className="max-md:hidden" />
-            <HeaderNewChat />
+            {/* <HeaderNewChat /> */}
           </div>
           <div
             className={`flex items-center gap-2 ${
               !isSmallScreen ? 'transition-all duration-200 ease-in-out' : ''
-            } ${!navVisible ? 'translate-x-0' : 'translate-x-[-100px]'}`}
+            } ${!navVisible ? 'translate-x-0' : 'translate-x-[-50px]'}`}
           >
             <ModelSelector startupConfig={startupConfig} />
             {interfaceConfig.presets === true && interfaceConfig.modelSelect && <PresetsMenu />}
