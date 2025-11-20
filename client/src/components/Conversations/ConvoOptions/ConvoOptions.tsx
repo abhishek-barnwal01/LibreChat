@@ -222,7 +222,7 @@ function ConvoOptions({
         }
         items={dropdownItems}
         menuId={menuId}
-        className="z-30"
+        className="z-50"
       />
       {showShareDialog && (
         <ShareButton
