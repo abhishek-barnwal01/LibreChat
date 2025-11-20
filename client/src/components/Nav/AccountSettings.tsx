@@ -40,7 +40,7 @@ function AccountSettings() {
         </div>
       </Select.Select>
       <Select.SelectPopover
-        className="popover-ui w-[235px]"
+        className="popover-ui z-50 w-[235px]"
         style={{
           transformOrigin: 'bottom',
           marginRight: '0px',
