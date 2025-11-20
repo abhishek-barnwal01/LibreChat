@@ -178,14 +178,34 @@ export default function Root() {
                   {navVisible && (
                     <button
                       onClick={toggleLeftSidebar}
-                      className="fixed z-50 cursor-pointer text-text-primary transition-opacity hover:opacity-70"
+                      className="fixed z-50 cursor-pointer transition-all hover:opacity-90 group"
                       style={{
                         top: `calc(50% + ${bannerHeight / 2}px)`,
                         left: '208px',
                       }}
                       aria-label="Close left sidebar"
                     >
-                      <ChevronLeft className="h-6 w-6" />
+                      {/* Default: straight line (grey → black on hover) */}
+                      <div
+                        className="h-5 w-1 rounded-full bg-gray-300 transition-all duration-200 group-hover:bg-black group-hover:opacity-0"
+                      >
+                      </div>
+
+                      {/* Hover: ChevronLeft (grey → black) */}
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="absolute top-0 left-0 h-6 w-6 opacity-0 transition-all duration-200 group-hover:opacity-100"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M5 4 L3 12 L5 20"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
                     </button>
                   )}
 
