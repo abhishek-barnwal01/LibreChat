@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useRecoilValue } from 'recoil';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,6 +29,9 @@ import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
 import { clearMessagesCache } from '~/utils';
 import store from '~/store';
+import NavToggle from '~/components/Nav/NavToggle';
+import { ImperativePanelHandle } from 'react-resizable-panels';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandleAlt } from '@librechat/client';
 
 export default function Root() {
   const [showTerms, setShowTerms] = useState(false);
@@ -41,6 +44,9 @@ export default function Root() {
     const savedRightSidebarVisible = localStorage.getItem('rightSidebarVisible');
     return savedRightSidebarVisible !== null ? JSON.parse(savedRightSidebarVisible) : true;
   });
+
+  const [isHoveringRight, setIsHoveringRight] = useState(false);
+  const rightPanelRef = useRef<ImperativePanelHandle>(null);
 
   const { isAuthenticated, logout } = useAuthContext();
   const navigate = useNavigate();
@@ -129,8 +135,14 @@ export default function Root() {
 
   const toggleRightSidebar = useCallback(() => {
     setRightSidebarVisible((prev) => {
-      localStorage.setItem('rightSidebarVisible', JSON.stringify(!prev));
-      return !prev;
+      const newValue = !prev;
+      localStorage.setItem('rightSidebarVisible', JSON.stringify(newValue));
+      if (!newValue) {
+        rightPanelRef.current?.collapse();
+      } else {
+        rightPanelRef.current?.expand();
+      }
+      return newValue;
     });
   }, []);
 
@@ -150,7 +162,7 @@ export default function Root() {
                 <TopNavigation onNewQuery={handleNewQuery} />
 
                 {/* Main Content Area */}
-                <div className="flex flex-1 overflow-hidden">
+                <ResizablePanelGroup direction="horizontal" className="flex flex-1 overflow-hidden">
                   {/* Left Sidebar */}
                   <aside
                     className="flex-shrink-0 border-r border-border-light transition-all duration-200 ease-in-out"
@@ -178,38 +190,48 @@ export default function Root() {
                   )}
 
                   {/* Center Chat Area */}
-                  <main className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
-                    <Outlet context={{ navVisible, setNavVisible } satisfies ContextType} />
-                  </main>
+                  <ResizablePanel defaultSize={75} minSize={30}>
+                    <main className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
+                      <Outlet context={{ navVisible, setNavVisible } satisfies ContextType} />
+                    </main>
+                  </ResizablePanel>
 
-                  {/* Right Sidebar Toggle */}
-                  <button
-                    onClick={toggleRightSidebar}
-                    className="fixed z-50 cursor-pointer text-text-primary transition-opacity hover:opacity-70"
-                    style={{
-                      top: `calc(50% + ${bannerHeight / 2}px)`,
-                      right: rightSidebarVisible ? '256px' : '0px',
-                    }}
-                    aria-label={rightSidebarVisible ? 'Close right sidebar' : 'Open right sidebar'}
+                  {/* Right Sidebar Resize Handle and Toggle */}
+                  <div
+                    onMouseEnter={() => setIsHoveringRight(true)}
+                    onMouseLeave={() => setIsHoveringRight(false)}
+                    className="relative flex w-px items-center justify-center"
                   >
-                    {rightSidebarVisible ? (
-                      <ChevronRight className="h-6 w-6" />
-                    ) : (
-                      <ChevronLeft className="h-6 w-6" />
-                    )}
-                  </button>
+                    <NavToggle
+                      navVisible={rightSidebarVisible}
+                      isHovering={isHoveringRight}
+                      onToggle={toggleRightSidebar}
+                      setIsHovering={setIsHoveringRight}
+                      className={`fixed top-1/2 ${rightSidebarVisible ? 'right-100' : 'right-10'}`}
+                      translateX={false}
+                      side="right"
+                    />
+                  </div>
+                  {rightSidebarVisible && (
+                    <ResizableHandleAlt withHandle className="bg-transparent text-text-primary" />
+                  )}
 
                   {/* Right Sidebar */}
-                  <aside
-                    className="flex-shrink-0 transition-all duration-200 ease-in-out"
-                    style={{
-                      width: rightSidebarVisible ? '256px' : '0px',
-                      opacity: rightSidebarVisible ? 1 : 0,
-                    }}
+                  <ResizablePanel
+                    ref={rightPanelRef}
+                    defaultSize={18}
+                    minSize={15}
+                    maxSize={40}
+                    collapsible
+                    collapsedSize={0}
+                    onCollapse={() => setRightSidebarVisible(false)}
+                    onExpand={() => setRightSidebarVisible(true)}
                   >
-                    <RightSidebar onPromptClick={handlePromptClick} />
-                  </aside>
-                </div>
+                    <aside className="flex h-full w-full flex-col overflow-hidden">
+                      <RightSidebar onPromptClick={handlePromptClick} />
+                    </aside>
+                  </ResizablePanel>
+                </ResizablePanelGroup>
               </div>
             </PromptGroupsProvider>
           </AgentsMapContext.Provider>
