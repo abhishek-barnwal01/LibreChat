@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Sparkles, Blocks, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '@librechat/client';
 import { Permissions, EModelEndpoint, PermissionTypes } from 'librechat-data-provider';
 import type { ChatFormValues } from '~/common';
 import { ChatFormProvider, ChatContext } from '~/Providers';
@@ -78,12 +79,12 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
       <div className="flex h-full w-full flex-col overflow-y-auto border-l border-border-light bg-surface-primary">
         {/* Agent Builder Section */}
         {showAgentBuilder && (
-          <div className="w-full border-b border-border-light">
+          <div className="w-full border-b border-border-light px-4 pt-4">
             <div className="flex flex-col">
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                className="w-full bg-transparent justify-between"
                 onClick={() => setIsAgentBuilderExpanded(!isAgentBuilderExpanded)}
-                className="flex items-center justify-between px-4 py-3 text-sm font-semibold text-text-primary hover:bg-surface-hover transition-colors"
               >
                 <div className="flex items-center gap-2">
                   <Blocks className="h-4 w-4" />
@@ -94,9 +95,9 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
                 ) : (
                   <ChevronDown className="h-4 w-4" />
                 )}
-              </button>
+              </Button>
               {isAgentBuilderExpanded && (
-                <div className="border-t border-border-light">
+                <div className="mt-4 max-h-[60vh] overflow-y-auto">
                   <ChatContext.Provider value={chatHelpers}>
                     <AgentPanelSwitch />
                   </ChatContext.Provider>
