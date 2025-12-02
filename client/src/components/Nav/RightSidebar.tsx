@@ -3,11 +3,12 @@ import { useForm } from 'react-hook-form';
 import { Sparkles, Blocks, ChevronDown, ChevronUp } from 'lucide-react';
 import { Permissions, EModelEndpoint, PermissionTypes } from 'librechat-data-provider';
 import type { ChatFormValues } from '~/common';
-import { ChatFormProvider } from '~/Providers';
+import { ChatFormProvider, ChatContext } from '~/Providers';
 import GroupSidePanel from '~/components/Prompts/Groups/GroupSidePanel';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
 import { useGetEndpointsQuery } from '~/data-provider';
 import { useHasAccess } from '~/hooks';
+import useChatHelpers from '~/hooks/Chat/useChatHelpers';
 import { cn } from '~/utils';
 
 interface Prompt {
@@ -57,6 +58,9 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
     hasAccessToCreateAgents &&
     endpointsConfig[EModelEndpoint.agents].disableBuilder !== true;
 
+  // Create ChatContext for AgentPanelSwitch
+  const chatHelpers = useChatHelpers(0, 'new');
+
   const groupedSuggestedPrompts = suggestedPromptsData.reduce(
     (acc, prompt) => {
       const category = prompt.category || 'OTHER';
@@ -93,7 +97,9 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
               </button>
               {isAgentBuilderExpanded && (
                 <div className="border-t border-border-light">
-                  <AgentPanelSwitch />
+                  <ChatContext.Provider value={chatHelpers}>
+                    <AgentPanelSwitch />
+                  </ChatContext.Provider>
                 </div>
               )}
             </div>
