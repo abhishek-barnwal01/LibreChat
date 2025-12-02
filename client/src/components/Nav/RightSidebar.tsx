@@ -1,9 +1,13 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Blocks, ChevronDown, ChevronUp } from 'lucide-react';
+import { Permissions, EModelEndpoint, PermissionTypes } from 'librechat-data-provider';
 import type { ChatFormValues } from '~/common';
 import { ChatFormProvider } from '~/Providers';
 import GroupSidePanel from '~/components/Prompts/Groups/GroupSidePanel';
+import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
+import { useGetEndpointsQuery } from '~/data-provider';
+import { useHasAccess } from '~/hooks';
 import { cn } from '~/utils';
 
 interface Prompt {
@@ -33,6 +37,26 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
     defaultValues: { text: '' },
   });
 
+  const [isAgentBuilderExpanded, setIsAgentBuilderExpanded] = useState(true);
+
+  const { data: endpointsConfig = {} } = useGetEndpointsQuery();
+
+  const hasAccessToAgents = useHasAccess({
+    permissionType: PermissionTypes.AGENTS,
+    permission: Permissions.USE,
+  });
+
+  const hasAccessToCreateAgents = useHasAccess({
+    permissionType: PermissionTypes.AGENTS,
+    permission: Permissions.CREATE,
+  });
+
+  const showAgentBuilder =
+    endpointsConfig?.[EModelEndpoint.agents] &&
+    hasAccessToAgents &&
+    hasAccessToCreateAgents &&
+    endpointsConfig[EModelEndpoint.agents].disableBuilder !== true;
+
   const groupedSuggestedPrompts = suggestedPromptsData.reduce(
     (acc, prompt) => {
       const category = prompt.category || 'OTHER';
@@ -48,6 +72,34 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
   return (
     <ChatFormProvider {...methods}>
       <div className="flex h-full w-full flex-col overflow-y-auto border-l border-border-light bg-surface-primary">
+        {/* Agent Builder Section */}
+        {showAgentBuilder && (
+          <div className="w-full border-b border-border-light">
+            <div className="flex flex-col">
+              <button
+                type="button"
+                onClick={() => setIsAgentBuilderExpanded(!isAgentBuilderExpanded)}
+                className="flex items-center justify-between px-4 py-3 text-sm font-semibold text-text-primary hover:bg-surface-hover transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Blocks className="h-4 w-4" />
+                  <span>Agent Builder</span>
+                </div>
+                {isAgentBuilderExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
+              {isAgentBuilderExpanded && (
+                <div className="border-t border-border-light">
+                  <AgentPanelSwitch />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Prompts Section - Uses actual user prompts from database */}
         <div className="w-full border-b border-border-light">
           <GroupSidePanel
