@@ -64,8 +64,9 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
     endpointsConfig[EModelEndpoint.agents].disableBuilder !== true;
 
   // Use real conversation ID if available, otherwise use 'new'
-  // This provides proper context for agent operations
-  const chatHelpers = useChatHelpers(0, conversationId || 'new');
+  // Use index 99 to avoid conflicts with main chat context (index 0)
+  // This prevents step tracking conflicts when agents make tool calls
+  const chatHelpers = useChatHelpers(99, conversationId || 'new');
 
   const groupedSuggestedPrompts = suggestedPromptsData.reduce(
     (acc, prompt) => {
