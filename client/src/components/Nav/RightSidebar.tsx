@@ -1,6 +1,8 @@
 import { memo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useParams } from 'react-router-dom';
 import { Sparkles, Blocks, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '@librechat/client';
 import { Permissions, EModelEndpoint, PermissionTypes } from 'librechat-data-provider';
 import type { ChatFormValues } from '~/common';
 import { ChatFormProvider, ChatContext } from '~/Providers';
@@ -40,6 +42,9 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
 
   const [isAgentBuilderExpanded, setIsAgentBuilderExpanded] = useState(true);
 
+  // Get conversation ID from route if available
+  const { conversationId } = useParams();
+
   const { data: endpointsConfig = {} } = useGetEndpointsQuery();
 
   const hasAccessToAgents = useHasAccess({
@@ -58,8 +63,9 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
     hasAccessToCreateAgents &&
     endpointsConfig[EModelEndpoint.agents].disableBuilder !== true;
 
-  // Create ChatContext for AgentPanelSwitch
-  const chatHelpers = useChatHelpers(0, 'new');
+  // Use real conversation ID if available, otherwise use 'new'
+  // This provides proper context for agent operations
+  const chatHelpers = useChatHelpers(0, conversationId || 'new');
 
   const groupedSuggestedPrompts = suggestedPromptsData.reduce(
     (acc, prompt) => {
@@ -75,84 +81,87 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
 
   return (
     <ChatFormProvider {...methods}>
-      <div className="flex h-full w-full flex-col overflow-y-auto border-l border-border-light bg-surface-primary">
-        {/* Agent Builder Section */}
-        {showAgentBuilder && (
-          <div className="w-full border-b border-border-light">
-            <div className="flex flex-col">
-              <button
-                type="button"
-                onClick={() => setIsAgentBuilderExpanded(!isAgentBuilderExpanded)}
-                className="flex items-center justify-between px-4 py-3 text-sm font-semibold text-text-primary hover:bg-surface-hover transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <Blocks className="h-4 w-4" />
-                  <span>Agent Builder</span>
-                </div>
-                {isAgentBuilderExpanded ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
+      <div className="flex h-full w-full flex-col border-l border-border-light bg-surface-primary">
+        {/* Scrollable content area - single scroll for everything */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Agent Builder Section */}
+          {showAgentBuilder && (
+            <div className="w-full border-b border-border-light px-4 pt-4">
+              <div className="flex flex-col">
+                <Button
+                  variant="outline"
+                  className="w-full bg-transparent justify-between"
+                  onClick={() => setIsAgentBuilderExpanded(!isAgentBuilderExpanded)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Blocks className="h-4 w-4" />
+                    <span>Agent Builder</span>
+                  </div>
+                  {isAgentBuilderExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+                {isAgentBuilderExpanded && (
+                  <div className="mt-4">
+                    <ChatContext.Provider value={chatHelpers}>
+                      <AgentPanelSwitch />
+                    </ChatContext.Provider>
+                  </div>
                 )}
-              </button>
-              {isAgentBuilderExpanded && (
-                <div className="border-t border-border-light">
-                  <ChatContext.Provider value={chatHelpers}>
-                    <AgentPanelSwitch />
-                  </ChatContext.Provider>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Prompts Section - Uses actual user prompts from database */}
-        <div className="w-full border-b border-border-light">
-          <GroupSidePanel
-            isDetailView={false}
-            className="!w-full border-b-0 md:!min-w-0 lg:!w-full xl:!w-full"
-            onPromptClick={onPromptClick}
-          />
-        </div>
-
-        {/* Suggested Prompts Section - Hardcoded system-wide suggestions */}
-        <div className="p-4">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-text-primary">
-            <Sparkles className="h-4 w-4" />
-            <span>Suggested Prompts</span>
-          </div>
-
-          <div className="space-y-6">
-            {Object.entries(groupedSuggestedPrompts).map(([category, prompts]) => (
-              <div key={category}>
-                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
-                  {category}
-                </div>
-                <div className="space-y-2">
-                  {prompts.map((prompt) => (
-                    <button
-                      key={prompt.id}
-                      type="button"
-                      onClick={() => onPromptClick?.(prompt.text)}
-                      className="w-full rounded-lg border border-border-medium bg-surface-primary p-3 text-left text-sm text-text-primary transition-all duration-300 hover:border-[#54b948] hover:shadow-lg"
-                      style={{
-                        transition: 'all 0.3s ease-in-out',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(90deg, #54b9481a, #00aeef1a, #ec008c1a)';
-                        e.currentTarget.style.transform = 'translateX(2px)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '';
-                        e.currentTarget.style.transform = '';
-                      }}
-                    >
-                      {prompt.text}
-                    </button>
-                  ))}
-                </div>
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Prompts Section - Uses actual user prompts from database */}
+          <div className="w-full border-b border-border-light">
+            <GroupSidePanel
+              isDetailView={false}
+              className="!w-full border-b-0 md:!min-w-0 lg:!w-full xl:!w-full"
+              onPromptClick={onPromptClick}
+            />
+          </div>
+
+          {/* Suggested Prompts Section - Hardcoded system-wide suggestions */}
+          <div className="p-4">
+            <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <Sparkles className="h-4 w-4" />
+              <span>Suggested Prompts</span>
+            </div>
+
+            <div className="space-y-6">
+              {Object.entries(groupedSuggestedPrompts).map(([category, prompts]) => (
+                <div key={category}>
+                  <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
+                    {category}
+                  </div>
+                  <div className="space-y-2">
+                    {prompts.map((prompt) => (
+                      <button
+                        key={prompt.id}
+                        type="button"
+                        onClick={() => onPromptClick?.(prompt.text)}
+                        className="w-full rounded-lg border border-border-medium bg-surface-primary p-3 text-left text-sm text-text-primary transition-all duration-300 hover:border-[#54b948] hover:shadow-lg"
+                        style={{
+                          transition: 'all 0.3s ease-in-out',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'linear-gradient(90deg, #54b9481a, #00aeef1a, #ec008c1a)';
+                          e.currentTarget.style.transform = 'translateX(2px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '';
+                          e.currentTarget.style.transform = '';
+                        }}
+                      >
+                        {prompt.text}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
