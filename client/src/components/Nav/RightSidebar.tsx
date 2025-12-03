@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useParams } from 'react-router-dom';
 import { Sparkles, Blocks, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@librechat/client';
 import { Permissions, EModelEndpoint, PermissionTypes } from 'librechat-data-provider';
@@ -41,6 +42,9 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
 
   const [isAgentBuilderExpanded, setIsAgentBuilderExpanded] = useState(true);
 
+  // Get conversation ID from route if available
+  const { conversationId } = useParams();
+
   const { data: endpointsConfig = {} } = useGetEndpointsQuery();
 
   const hasAccessToAgents = useHasAccess({
@@ -59,8 +63,9 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
     hasAccessToCreateAgents &&
     endpointsConfig[EModelEndpoint.agents].disableBuilder !== true;
 
-  // Create ChatContext for AgentPanelSwitch
-  const chatHelpers = useChatHelpers(0, 'new');
+  // Use real conversation ID if available, otherwise use 'new'
+  // This provides proper context for agent operations
+  const chatHelpers = useChatHelpers(0, conversationId || 'new');
 
   const groupedSuggestedPrompts = suggestedPromptsData.reduce(
     (acc, prompt) => {
