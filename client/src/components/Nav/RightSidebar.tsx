@@ -65,7 +65,7 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
 
   // Use real conversation ID if available, otherwise use 'new'
   // This provides proper context for agent operations
-  const chatHelpers = useChatHelpers(0, conversationId || 'new');
+  const chatHelpers = useChatHelpers(0, 'new');
 
   const groupedSuggestedPrompts = suggestedPromptsData.reduce(
     (acc, prompt) => {

@@ -27,7 +27,7 @@ cache: true
 
 # Custom interface configuration
 interface:
-  customWelcome: 'Welcome to MSIL ChatBot! Enjoy your experience.'
+  customWelcome: 'Welcome to GCPL ChatBot! Enjoy your experience.'
   # Enable/disable file search as a chatarea selection (default: true)
   # Note: This setting does not disable the Agents File Search Capability.
   # To disable the Agents Capability, see the Agents Endpoint configuration instead.
@@ -177,10 +177,10 @@ actions:
     - 'google.com'
 
 # Example MCP Servers Object Structure
-# mcpServers:
-#   everything:
-#     # type: sse # type can optionally be omitted
-#     url: http://localhost:3001/sse
+mcpServers:
+  everything:
+    type: streamable-http
+    url: http://host.docker.internal:3001/mcp
 #     timeout: 60000  # 1 minute timeout for this server, this is the default timeout for MCP servers.
 #   puppeteer:
 #     type: stdio
@@ -263,6 +263,19 @@ endpoints:
       summarize: true
       summaryModel: "llama-3.1-8b-instant"
       modelDisplayLabel: "Groq (Free)"
+      iconURL: "https://groq.com/favicon.ico"
+
+    - name: "Excel RAG"
+      apiKey: '${MY_API_KEY}'
+      baseURL: "http://localhost:5001/v1"
+      models:
+        default: ["excel-rag-v1"]
+        fetch: false
+      titleConvo: true
+      titleModel: "excel-rag-v1"
+      summarize: false
+      forcePrompt: false
+      modelDisplayLabel: "Excel RAG"
       iconURL: "https://groq.com/favicon.ico"
 
     # Mistral AI Example

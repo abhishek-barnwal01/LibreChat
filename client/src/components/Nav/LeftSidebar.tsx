@@ -141,13 +141,13 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
   return (
     <div className="flex h-full flex-col bg-surface-primary">
       <div className="flex-shrink-0 border-b border-border-light p-4">
-        <h2 className="text-lg font-semibold text-text-primary">CMI Data Assistant</h2>
+        <h2 className="text-lg font-semibold text-text-primary">CMI MarketLens</h2>
       </div>
 
       {/* Single scrollable content area for entire sidebar */}
       <div className="flex-1 overflow-y-auto">
         {/* Projects Section */}
-        <CollapsibleSection
+        {/* <CollapsibleSection
           title="Projects"
           defaultOpen={true}
           rightAction={
@@ -175,10 +175,10 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
           >
             Default Project
           </button>
-        </CollapsibleSection>
+        </CollapsibleSection> */}
 
         {/* Documents Section */}
-        <CollapsibleSection title="Documents" defaultOpen={true}>
+        {/* <CollapsibleSection title="Documents" defaultOpen={true}>
           <div className="space-y-2">
             <button
               type="button"
@@ -202,10 +202,10 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
               <span>Link SharePoint</span>
             </button>
           </div>
-        </CollapsibleSection>
+        </CollapsibleSection> */}
 
         {/* Filters Section */}
-        <CollapsibleSection
+        {/* <CollapsibleSection
           title="Filters"
           defaultOpen={true}
           rightAction={
@@ -223,7 +223,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
           }
         >
           <div className="space-y-4">
-            {/* Datasets */}
+            
             <div>
               <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
                 Datasets
@@ -250,7 +250,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
               </div>
             </div>
 
-            {/* Geography */}
+            
             <div>
               <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
                 Geography
@@ -277,7 +277,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
               </div>
             </div>
           </div>
-        </CollapsibleSection>
+        </CollapsibleSection> */}
 
         {/* Chat History Section */}
         <CollapsibleSection title="Chat History" defaultOpen={true}>
