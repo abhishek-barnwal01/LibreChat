@@ -265,6 +265,24 @@ endpoints:
       modelDisplayLabel: "Groq (Free)"
       iconURL: "https://groq.com/favicon.ico"
 
+    # Azure OpenAI
+    - name: "AzureOpenAI"
+      apiKey: '${AZURE_OPENAI_API_KEY}'
+      baseURL: "https://your-resource-name.openai.azure.com/openai/deployments/your-deployment-name"
+      headers:
+        api-key: '${AZURE_OPENAI_API_KEY}'
+      addParams:
+        api-version: "2024-02-15-preview"
+      models:
+        default: ["gpt-4o", "gpt-4", "gpt-35-turbo"]
+        fetch: false
+      titleConvo: true
+      titleModel: "gpt-35-turbo"
+      summarize: false
+      summaryModel: "gpt-35-turbo"
+      modelDisplayLabel: "Azure OpenAI"
+      iconURL: "https://www.microsoft.com/favicon.ico"
+
     # Mistral AI Example
     # - name: 'Mistral' # Unique name for the endpoint
     #   # For `apiKey` and `baseURL`, you can use environment variables that you define.
