@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { UseQueryOptions, QueryObserverResult } from '@tanstack/react-query';
+import { request } from 'librechat-data-provider';
 
 export interface BlobDocument {
   name: string;
@@ -13,9 +14,6 @@ export interface BlobListResponse {
   documents: BlobDocument[];
   totalCount: number;
 }
-
-// Use backend proxy to avoid CORS issues
-const BLOB_API_URL = '/api/knowledge-base/blobs';
 
 const parseBlobXmlResponse = (xmlText: string): BlobListResponse => {
   const parser = new DOMParser();
@@ -51,15 +49,9 @@ const parseBlobXmlResponse = (xmlText: string): BlobListResponse => {
   };
 };
 
-const fetchBlobList = async (): Promise<BlobListResponse> => {
+export const getBlobList = async (): Promise<BlobListResponse> => {
   try {
-    const response = await fetch(BLOB_API_URL);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch blob list: ${response.statusText}`);
-    }
-
-    const xmlText = await response.text();
+    const xmlText = await request.get<string>('/api/knowledge-base/blobs');
     return parseBlobXmlResponse(xmlText);
   } catch (error) {
     console.error('Error fetching blob list:', error);
@@ -72,7 +64,7 @@ export const useGetBlobListQuery = (
 ): QueryObserverResult<BlobListResponse, unknown> => {
   return useQuery<BlobListResponse>(
     ['blobList'],
-    () => fetchBlobList(),
+    () => getBlobList(),
     {
       staleTime: 1000 * 60 * 5, // 5 minutes
       refetchOnWindowFocus: false,
