@@ -16,6 +16,7 @@ import { useNavScrolling } from '~/hooks';
 import store from '~/store';
 
 const AccountSettings = lazy(() => import('./AccountSettings'));
+const KnowledgeBase = lazy(() => import('./KnowledgeBase'));
 
 interface LeftSidebarProps {
   toggleNav?: () => void;
@@ -83,6 +84,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
   const [selectedGeography, setSelectedGeography] = useState('india');
   const [tags, setTags] = useState<string[]>([]);
   const [showLoading, setShowLoading] = useState(false);
+  const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
   const listRef = useRef<any>(null);
 
   const search = useRecoilValue(store.search);
@@ -182,6 +184,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
           <div className="space-y-2">
             <button
               type="button"
+              onClick={() => setShowKnowledgeBase(true)}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface-hover"
             >
               <FolderOpen className="h-4 w-4" />
@@ -302,6 +305,13 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
           <AccountSettings />
         </Suspense>
       </div>
+
+      {/* Knowledge Base Modal */}
+      {showKnowledgeBase && (
+        <Suspense fallback={null}>
+          <KnowledgeBase onClose={() => setShowKnowledgeBase(false)} />
+        </Suspense>
+      )}
     </div>
   );
 });

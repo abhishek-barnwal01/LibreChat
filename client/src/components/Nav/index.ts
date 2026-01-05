@@ -9,3 +9,4 @@ export { default as Settings } from './Settings';
 export { default as TopNavigation } from './TopNavigation';
 export { default as LeftSidebar } from './LeftSidebar';
 export { default as RightSidebar } from './RightSidebar';
+export { default as KnowledgeBase } from './KnowledgeBase';
