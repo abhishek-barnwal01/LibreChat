@@ -14,7 +14,8 @@ export interface BlobListResponse {
   totalCount: number;
 }
 
-const BLOB_API_URL = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-poc?restype=container&comp=list&sv=2024-11-04&ss=bfqt&srt=c&sp=rwdlacupyx&se=2026-01-05T16:40:58Z&st=2026-01-05T08:25:58Z&spr=https&sig=zLwDBxxxxxxxxxxxxx5uFA0%3D';
+// Use backend proxy to avoid CORS issues
+const BLOB_API_URL = '/api/knowledge-base/blobs';
 
 const parseBlobXmlResponse = (xmlText: string): BlobListResponse => {
   const parser = new DOMParser();
