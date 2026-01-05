@@ -6,7 +6,7 @@ const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const router = express.Router();
 
 // Azure Blob Storage configuration
-const BLOB_API_URL = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-poc?restype=container&comp=list&sv=2024-11-04&ss=bfqt&srt=c&sp=rwdlacupyx&se=2026-01-05T16:40:58Z&st=2026-01-05T08:25:58Z&spr=https&sig=zLwDBxxxxxxxxxxxxx5uFA0%3D';
+const BLOB_API_URL = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-poc?restype=container&comp=list&sv=2024-11-04&ss=bfqt&srt=c&sp=rwdlacupyx&se=2026-01-05T16:40:58Z&st=2026-01-05T08:25:58Z&spr=https&sig=zLwDBXvvXUOTqNlUcybhkdlePNY0Vd83eQ6zgB5uFA0%3D';
 
 /**
  * GET /api/knowledge-base/blobs

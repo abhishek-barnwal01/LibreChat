@@ -47,7 +47,7 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
             </div>
           )}
 
-          {error && (
+          {error ? (
             <div className="flex h-full items-center justify-center">
               <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-center dark:border-red-800 dark:bg-red-900/20">
                 <p className="text-red-800 dark:text-red-300">
@@ -55,7 +55,7 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
                 </p>
               </div>
             </div>
-          )}
+          ) : null}
 
           {data && !isLoading && (
             <div className="space-y-6">
@@ -69,13 +69,13 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
                     <p className="text-sm font-medium uppercase tracking-wide text-text-secondary">
                       Total Documents
                     </p>
-                    <p className="text-4xl font-bold text-text-primary">{data.totalCount}</p>
+                    <p className="text-4xl font-bold text-text-primary">{data.totalCount as number}</p>
                   </div>
                 </div>
               </div>
 
               {/* Documents List */}
-              {data.totalCount > 0 && (
+              {(data.totalCount as number) > 0 && (
                 <div>
                   <h2 className="mb-4 text-lg font-semibold text-text-primary">Documents</h2>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -113,7 +113,7 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
                 </div>
               )}
 
-              {data.totalCount === 0 && (
+              {(data.totalCount as number) === 0 && (
                 <div className="flex h-64 items-center justify-center">
                   <div className="text-center">
                     <FileText className="mx-auto h-12 w-12 text-text-secondary opacity-50" />
