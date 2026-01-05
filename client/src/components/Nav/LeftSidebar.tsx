@@ -178,7 +178,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
         </CollapsibleSection> */}
 
         {/* Documents Section */}
-        {/* <CollapsibleSection title="Documents" defaultOpen={true}>
+        <CollapsibleSection title="Documents" defaultOpen={true}>
           <div className="space-y-2">
             <button
               type="button"
@@ -187,7 +187,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
               <FolderOpen className="h-4 w-4" />
               <span>Knowledge Base</span>
             </button>
-            <button
+            {/* <button
               type="button"
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface-hover"
             >
@@ -200,9 +200,9 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
             >
               <LinkIcon className="h-4 w-4" />
               <span>Link SharePoint</span>
-            </button>
+            </button> */}
           </div>
-        </CollapsibleSection> */}
+        </CollapsibleSection>
 
         {/* Filters Section */}
         {/* <CollapsibleSection

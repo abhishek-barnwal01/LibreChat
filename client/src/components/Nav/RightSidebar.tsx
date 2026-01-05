@@ -90,7 +90,7 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
               <div className="flex flex-col">
                 <Button
                   variant="outline"
-                  className="w-full bg-transparent justify-between"
+                  className="w-full bg-transparent justify-between mb-2"
                   onClick={() => setIsAgentBuilderExpanded(!isAgentBuilderExpanded)}
                 >
                   <div className="flex items-center gap-2">
@@ -104,10 +104,12 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
                   )}
                 </Button>
                 {isAgentBuilderExpanded && (
-                  <div className="mt-4">
-                    <ChatContext.Provider value={chatHelpers}>
-                      <AgentPanelSwitch />
-                    </ChatContext.Provider>
+                  <div className="mt-4 pb-4 relative isolate">
+                    <div className="w-full overflow-hidden">
+                      <ChatContext.Provider value={chatHelpers}>
+                        <AgentPanelSwitch />
+                      </ChatContext.Provider>
+                    </div>
                   </div>
                 )}
               </div>
