@@ -24,6 +24,7 @@ const {
   findUser,
 } = require('~/models');
 const { AclEntry, AccessRole, Group } = require('~/db/models');
+const { isCosmosDB, filterByBits } = require('~/server/utils/cosmosDbHelpers');
 
 /** @type {boolean|null} */
 let transactionSupportCache = null;
@@ -234,6 +235,18 @@ const findPubliclyAccessibleResources = async ({ resourceType, requiredPermissio
     validateResourceType(resourceType);
 
     // Find all public ACL entries where the public principal has at least the required permission bits
+    // CosmosDB doesn't support $bitsAllSet, so we filter in application code
+    if (isCosmosDB()) {
+      const entries = await AclEntry.find({
+        principalType: PrincipalType.PUBLIC,
+        resourceType,
+      }).lean();
+
+      const filteredEntries = filterByBits(entries, requiredPermissions);
+      return [...new Set(filteredEntries.map(entry => entry.resourceId))];
+    }
+
+    // Use MongoDB bitwise operator for regular MongoDB
     const entries = await AclEntry.find({
       principalType: PrincipalType.PUBLIC,
       resourceType,

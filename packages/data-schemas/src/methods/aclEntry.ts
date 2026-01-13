@@ -3,6 +3,24 @@ import { PrincipalType, PrincipalModel } from 'librechat-data-provider';
 import type { Model, DeleteResult, ClientSession } from 'mongoose';
 import type { IAclEntry } from '~/types';
 
+/**
+ * Check if CosmosDB is being used
+ */
+function isCosmosDB(): boolean {
+  const connectionString = process.env.MONGO_URI || '';
+  return connectionString.includes('cosmos.azure.com') ||
+         connectionString.includes('documents.azure.com') ||
+         process.env.USE_COSMOSDB === 'true';
+}
+
+/**
+ * Check if all required permission bits are set
+ * CosmosDB-compatible replacement for $bitsAllSet
+ */
+function hasAllBitsSet(permBits: number, requiredBits: number): boolean {
+  return (permBits & requiredBits) === requiredBits;
+}
+
 export function createAclEntryMethods(mongoose: typeof import('mongoose')) {
   /**
    * Find ACL entries for a specific principal (user or group)
@@ -83,6 +101,18 @@ export function createAclEntryMethods(mongoose: typeof import('mongoose')) {
       ...(p.principalType !== PrincipalType.PUBLIC && { principalId: p.principalId }),
     }));
 
+    // CosmosDB doesn't support $bitsAllSet, so we filter in application code
+    if (isCosmosDB()) {
+      const entries = await AclEntry.find({
+        $or: principalsQuery,
+        resourceType,
+        resourceId,
+      }).lean();
+
+      return entries.some(entry => hasAllBitsSet(entry.permBits, permissionBit));
+    }
+
+    // Use MongoDB bitwise operator for regular MongoDB
     const entry = await AclEntry.findOne({
       $or: principalsQuery,
       resourceType,
@@ -286,6 +316,18 @@ export function createAclEntryMethods(mongoose: typeof import('mongoose')) {
       ...(p.principalType !== PrincipalType.PUBLIC && { principalId: p.principalId }),
     }));
 
+    // CosmosDB doesn't support $bitsAllSet, so we filter in application code
+    if (isCosmosDB()) {
+      const entries = await AclEntry.find({
+        $or: principalsQuery,
+        resourceType,
+      }).lean();
+
+      const filteredEntries = entries.filter(entry => hasAllBitsSet(entry.permBits, requiredPermBit));
+      return [...new Set(filteredEntries.map(entry => entry.resourceId))];
+    }
+
+    // Use MongoDB bitwise operator for regular MongoDB
     const entries = await AclEntry.find({
       $or: principalsQuery,
       resourceType,
