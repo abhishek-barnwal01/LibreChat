@@ -21,6 +21,18 @@ class AzureAISearch extends Tool {
 
 IMPORTANT: The index contains document CHUNKS, not whole documents. Each document is split into multiple chunks.
 
+WHEN TO USE FACETS (ONLY for these use cases):
+- User asks "how many documents" or "list all categories"
+- User wants to know what types/categories exist
+- User wants document counts by category
+Example: "How many U&A reports?" → Use facets: ["file_category_ai"]
+
+WHEN NOT TO USE FACETS (most queries):
+- Searching for specific content/keywords
+- Finding documents by name/topic
+- Answering questions about document content
+Example: "Find Godrej growth reports" → Use query only, NO facets
+
 MULTI-CALL STRATEGY FOR COUNTING DOCUMENTS:
 1. To count unique documents by category:
    - Use filter to get chunks of that category
@@ -34,17 +46,21 @@ MULTI-CALL STRATEGY FOR COUNTING DOCUMENTS:
    - Extract unique "document_title" values
 
 PARAMETERS:
-- query: Search term (use "*" for all documents)
+- query: Search term for content (use "*" only when filtering by category)
 - filter: OData filter (e.g., "file_category_ai eq 'Usage/Attitude (U&A)'")
-- facets: Array of fields to aggregate (NOTE: counts will be chunks, not documents)
+- facets: Array of fields to aggregate (ONLY use when counting/listing categories)
 - skip: Number of results to skip for pagination (default: 0)
 
-EXAMPLES:
-- Count U&A documents: Filter by category, fetch all chunks, count distinct text_document_id
-  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", skip: 0 }
-- List document titles: Fetch chunks and extract unique document_title values
+LIMITATIONS:
+- Page-specific searches (e.g., "page 6") may not work as chunks don't contain page numbers
+- For specific pages, search for content likely on that page instead
 
-FACET WARNING: Facet counts represent CHUNKS not DOCUMENTS. Do not use facet counts as document counts.`;
+EXAMPLES:
+✓ Content search: { query: "Godrej growth 2022" } - NO facets
+✓ Count U&A docs: { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", skip: 0 }
+✓ List categories: { query: "*", facets: ["file_category_ai"] }
+✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search`;
+
 
     /* Used to initialize the Tool without necessary variables. */
     this.override = fields.override ?? false;
