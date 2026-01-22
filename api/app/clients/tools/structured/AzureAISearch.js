@@ -20,6 +20,7 @@ class AzureAISearch extends Tool {
     this.description = `Use 'azure-ai-search' to search and analyze documents in the knowledge base.
 
 IMPORTANT: The index contains document CHUNKS, not whole documents. Each document is split into multiple chunks.
+CRITICAL: Chunks from the same document are grouped together in the index. Fetching only 5-10 chunks will likely return chunks from just 1-2 documents. You MUST fetch 100-150 chunks (20-30 calls) to discover all unique documents in a category.
 
 WHEN TO USE FACETS (ONLY for these use cases):
 - User asks "how many documents" or "list all categories"
@@ -35,18 +36,24 @@ Example: "Find Godrej growth reports" → Use query only, NO facets
 
 MULTI-CALL STRATEGY FOR COUNTING DOCUMENTS:
 1. To count unique documents by category:
-   - IMPORTANT: Set select to only "document_title,text_document_id" to reduce tokens
+   - IMPORTANT: Set selectFields to only "document_title,text_document_id" to reduce tokens
    - Use filter to get chunks of that category
-   - Fetch in batches (5 per call), extract unique document_title values
-   - STOP when you have enough unique titles (don't fetch all 5000+ chunks!)
-   - Example: After 50-100 chunks, you'll likely have most unique documents
+   - MAKE AT LEAST 20-30 CALLS (100-150 chunks) to discover most unique documents
+   - Each call returns 5 chunks - keep making calls until unique document count stabilizes
+   - Track unique document_title values across all calls
+   - Example workflow:
+     * Call 1-10 (50 chunks): Discover 10-20 unique documents
+     * Call 11-20 (100 chunks): Discover 5-10 more unique documents
+     * Call 21-30 (150 chunks): Only 1-2 new documents found → count is stable, STOP
+   - DO NOT stop after just 2-3 calls! You need many calls to discover all documents.
 
 2. To list document names efficiently:
    - Use filter for specific category
-   - Set select to "document_title" only (reduces token usage drastically)
-   - Fetch 50-100 chunks maximum
-   - Extract unique document_title values
-   - This gives you the document list without exceeding context window
+   - Set selectFields to "document_title" only (reduces token usage drastically)
+   - MAKE AT LEAST 20-30 CALLS to discover all unique documents
+   - Extract unique document_title values from ALL calls combined
+   - Stop when no new unique document titles appear for 5+ consecutive calls
+   - This gives you the comprehensive document list without exceeding context window
 
 PARAMETERS:
 - query: Search term for content (use "*" only when filtering by category or page)
@@ -71,11 +78,20 @@ Example: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.p
 EXAMPLES:
 ✓ Content search: { query: "Godrej growth 2022" } - NO facets
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
-✓ List U&A document names: { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title", skip: 0 }
-  - Fetch 50-100 chunks max, extract unique document_title values, STOP
-✓ Count U&A docs: { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title,text_document_id", skip: 0 }
-  - Fetch until you have stable unique count (usually 50-100 chunks)
+
+✓ List U&A document names (CORRECT multi-call approach):
+  Call 1:  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title", skip: 0 }
+  Call 2:  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title", skip: 5 }
+  Call 3:  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title", skip: 10 }
+  ... continue for 20-30 calls (100-150 chunks)
+  Extract ALL unique document_title values from ALL calls combined
+  Stop when no new titles appear for 5+ consecutive calls
+
+✓ Count U&A docs: Same as above, but track unique document count across all calls
+
 ✓ List categories: { query: "*", facets: ["file_category_ai"] }
+
+✗ Wrong: Only 2-3 calls then stop - You'll only find 1-2 documents!
 ✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search
 ✗ Wrong: List docs without selectFields - Will exceed context window!`;
 
