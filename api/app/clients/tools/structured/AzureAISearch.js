@@ -46,17 +46,24 @@ MULTI-CALL STRATEGY FOR COUNTING DOCUMENTS:
    - Extract unique "document_title" values
 
 PARAMETERS:
-- query: Search term for content (use "*" only when filtering by category)
-- filter: OData filter (e.g., "file_category_ai eq 'Usage/Attitude (U&A)'")
+- query: Search term for content (use "*" only when filtering by category or page)
+- filter: OData filter expressions:
+  * By category: "file_category_ai eq 'Usage/Attitude (U&A)'"
+  * By page: "locationMetadata/pageNumber eq 6"
+  * By document + page: "document_title eq 'Report.pdf' and locationMetadata/pageNumber eq 6"
+  * By multiple fields: combine with "and" or "or"
 - facets: Array of fields to aggregate (ONLY use when counting/listing categories)
 - skip: Number of results to skip for pagination (default: 0)
 
-LIMITATIONS:
-- Page-specific searches (e.g., "page 6") may not work as chunks don't contain page numbers
-- For specific pages, search for content likely on that page instead
+PAGE-SPECIFIC SEARCHES:
+- The index has pageNumber field under locationMetadata
+- To filter by page: use "locationMetadata/pageNumber eq [number]"
+- For specific document + page: combine filters with AND
+Example: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'"
 
 EXAMPLES:
 ✓ Content search: { query: "Godrej growth 2022" } - NO facets
+✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
 ✓ Count U&A docs: { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", skip: 0 }
 ✓ List categories: { query: "*", facets: ["file_category_ai"] }
 ✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search`;
