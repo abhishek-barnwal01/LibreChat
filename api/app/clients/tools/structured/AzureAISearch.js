@@ -20,54 +20,46 @@ class AzureAISearch extends Tool {
     this.description = `Use 'azure-ai-search' to search and analyze documents in the knowledge base.
 
 IMPORTANT: The index contains document CHUNKS, not whole documents. Each document is split into multiple chunks.
-CRITICAL: Chunks from the same document are grouped together in the index. Fetching only 5-10 chunks will likely return chunks from just 1-2 documents. You MUST fetch 100-150 chunks (20-30 calls) to discover all unique documents in a category.
 
-WHEN TO USE FACETS (ONLY for these use cases):
-- User asks "how many documents" or "list all categories"
-- User wants to know what types/categories exist
-- User wants document counts by category
-Example: "How many U&A reports?" → Use facets: ["file_category_ai"]
+⚡ EFFICIENT DOCUMENT COUNTING (NEW - Use This First!):
+The index now has document_title and text_document_id as FACETABLE fields.
+To count or list unique documents:
+1. Use facets: ["document_title"] or facets: ["text_document_id"]
+2. Get results in 1 call instead of 20-30 calls
+3. Count of facet items = number of unique documents
 
-WHEN NOT TO USE FACETS (most queries):
+Example for "How many U&A reports?":
+{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title"] }
+→ Returns facet with all unique document names + their chunk counts
+→ Number of facet items = number of unique documents
+
+Example for "List all U&A reports":
+{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title"] }
+→ Extract all facet values = complete list of document names
+
+WHEN TO USE FACETS:
+1. Counting documents: facets: ["document_title"] or ["text_document_id"]
+2. Listing document names: facets: ["document_title"]
+3. Listing categories: facets: ["file_category_ai"]
+4. Counting by any facetable field
+
+WHEN NOT TO USE FACETS:
 - Searching for specific content/keywords
 - Finding documents by name/topic
 - Answering questions about document content
 Example: "Find Godrej growth reports" → Use query only, NO facets
 
-MULTI-CALL STRATEGY FOR COUNTING DOCUMENTS:
-1. To count unique documents by category:
-   - IMPORTANT: Set selectFields to only "document_title,text_document_id" to reduce tokens
-   - Use filter to get chunks of that category
-   - MAKE AT LEAST 20-30 CALLS (100-150 chunks) to discover most unique documents
-   - Each call returns 5 chunks - keep making calls until unique document count stabilizes
-   - Track unique document_title values across all calls
-   - Example workflow:
-     * Call 1-10 (50 chunks): Discover 10-20 unique documents
-     * Call 11-20 (100 chunks): Discover 5-10 more unique documents
-     * Call 21-30 (150 chunks): Only 1-2 new documents found → count is stable, STOP
-   - DO NOT stop after just 2-3 calls! You need many calls to discover all documents.
-
-2. To list document names efficiently:
-   - Use filter for specific category
-   - Set selectFields to "document_title" only (reduces token usage drastically)
-   - MAKE AT LEAST 20-30 CALLS to discover all unique documents
-   - Extract unique document_title values from ALL calls combined
-   - Stop when no new unique document titles appear for 5+ consecutive calls
-   - This gives you the comprehensive document list without exceeding context window
-
 PARAMETERS:
-- query: Search term for content (use "*" only when filtering by category or page)
+- query: Search term for content (use "*" when using filters/facets only)
 - filter: OData filter expressions:
   * By category: "file_category_ai eq 'Usage/Attitude (U&A)'"
   * By page: "locationMetadata/pageNumber eq 6"
   * By document + page: "document_title eq 'Report.pdf' and locationMetadata/pageNumber eq 6"
-  * By multiple fields: combine with "and" or "or"
-- facets: Array of fields to aggregate (ONLY use when counting/listing categories)
+  * By path: "content_path eq '/reports/2023/'"
+  * Combine with "and" or "or"
+- facets: Array of facetable fields ["document_title", "text_document_id", "file_category_ai", "content_path", etc.]
 - skip: Number of results to skip for pagination (default: 0)
-- selectFields: CRITICAL for listing documents - comma-separated fields to return
-  * For document names: "document_title"
-  * For counting unique docs: "document_title,text_document_id"
-  * Reduces token usage by 90%+ when you don't need full content
+- selectFields: Comma-separated fields to return (e.g., "document_title,text_document_id")
 
 PAGE-SPECIFIC SEARCHES:
 - The index has pageNumber field under locationMetadata
@@ -76,24 +68,22 @@ PAGE-SPECIFIC SEARCHES:
 Example: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'"
 
 EXAMPLES:
+✓ Count U&A reports (EFFICIENT - 1 call):
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title"] }
+  → Count facet items = number of documents
+
+✓ List all U&A reports (EFFICIENT - 1 call):
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title"] }
+  → Extract facet values = document names
+
 ✓ Content search: { query: "Godrej growth 2022" } - NO facets
+
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
 
-✓ List U&A document names (CORRECT multi-call approach):
-  Call 1:  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title", skip: 0 }
-  Call 2:  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title", skip: 5 }
-  Call 3:  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title", skip: 10 }
-  ... continue for 20-30 calls (100-150 chunks)
-  Extract ALL unique document_title values from ALL calls combined
-  Stop when no new titles appear for 5+ consecutive calls
+✓ Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title"] }
 
-✓ Count U&A docs: Same as above, but track unique document count across all calls
+✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search`;
 
-✓ List categories: { query: "*", facets: ["file_category_ai"] }
-
-✗ Wrong: Only 2-3 calls then stop - You'll only find 1-2 documents!
-✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search
-✗ Wrong: List docs without selectFields - Will exceed context window!`;
 
 
 
@@ -229,11 +219,21 @@ EXAMPLES:
       if (facets && searchResults.facets) {
         response.facets = {};
         for (const [facetName, facetResults] of Object.entries(searchResults.facets)) {
+          // Check if this is a document-identifying facet
+          const isDocumentFacet = facetName === 'document_title' || facetName === 'text_document_id';
+
           response.facets[facetName] = facetResults.map((item) => ({
             value: item.value,
             count: item.count,
-            note: 'This count represents chunks, not unique documents. For document count, fetch documents and count distinct text_document_id values.',
           }));
+
+          // Add appropriate guidance based on facet type
+          if (isDocumentFacet) {
+            response.facets[`${facetName}_note`] = `Number of items in this facet (${facetResults.length}) = number of unique documents. The 'count' field shows how many chunks belong to each document.`;
+            response.uniqueDocumentCount = facetResults.length;
+          } else {
+            response.facets[`${facetName}_note`] = `This facet shows categories/values. The 'count' field represents chunks, not unique documents.`;
+          }
         }
       }
 
@@ -244,8 +244,13 @@ EXAMPLES:
       }
 
       // Add important note about chunk vs document counting
-      if (response.facets || response.totalCount > 0) {
-        response.important_note = 'totalCount and facet counts represent CHUNKS, not documents. To count unique documents, fetch chunks with filter and count distinct text_document_id or document_title values.';
+      if (response.totalCount > 0 && !response.uniqueDocumentCount) {
+        response.important_note = 'totalCount represents CHUNKS, not documents. To count unique documents, use facets: ["document_title"] or ["text_document_id"].';
+      }
+
+      // Add summary if we have unique document count
+      if (response.uniqueDocumentCount) {
+        response.summary = `Found ${response.uniqueDocumentCount} unique documents (out of ${response.totalCount} total chunks).`;
       }
 
       return JSON.stringify(response, null, 2);
