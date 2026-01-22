@@ -35,15 +35,18 @@ Example: "Find Godrej growth reports" → Use query only, NO facets
 
 MULTI-CALL STRATEGY FOR COUNTING DOCUMENTS:
 1. To count unique documents by category:
+   - IMPORTANT: Set select to only "document_title,text_document_id" to reduce tokens
    - Use filter to get chunks of that category
-   - Fetch multiple pages to get all chunks (5 per call)
-   - Count distinct "text_document_id" or "document_title" values
-   - Example: filter: "file_category_ai eq 'Usage/Attitude (U&A)'"
+   - Fetch in batches (5 per call), extract unique document_title values
+   - STOP when you have enough unique titles (don't fetch all 5000+ chunks!)
+   - Example: After 50-100 chunks, you'll likely have most unique documents
 
-2. To list document names:
-   - Use filter to get specific category
-   - Paginate through results
-   - Extract unique "document_title" values
+2. To list document names efficiently:
+   - Use filter for specific category
+   - Set select to "document_title" only (reduces token usage drastically)
+   - Fetch 50-100 chunks maximum
+   - Extract unique document_title values
+   - This gives you the document list without exceeding context window
 
 PARAMETERS:
 - query: Search term for content (use "*" only when filtering by category or page)
@@ -54,6 +57,10 @@ PARAMETERS:
   * By multiple fields: combine with "and" or "or"
 - facets: Array of fields to aggregate (ONLY use when counting/listing categories)
 - skip: Number of results to skip for pagination (default: 0)
+- selectFields: CRITICAL for listing documents - comma-separated fields to return
+  * For document names: "document_title"
+  * For counting unique docs: "document_title,text_document_id"
+  * Reduces token usage by 90%+ when you don't need full content
 
 PAGE-SPECIFIC SEARCHES:
 - The index has pageNumber field under locationMetadata
@@ -64,9 +71,14 @@ Example: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.p
 EXAMPLES:
 ✓ Content search: { query: "Godrej growth 2022" } - NO facets
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
-✓ Count U&A docs: { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", skip: 0 }
+✓ List U&A document names: { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title", skip: 0 }
+  - Fetch 50-100 chunks max, extract unique document_title values, STOP
+✓ Count U&A docs: { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", selectFields: "document_title,text_document_id", skip: 0 }
+  - Fetch until you have stable unique count (usually 50-100 chunks)
 ✓ List categories: { query: "*", facets: ["file_category_ai"] }
-✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search`;
+✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search
+✗ Wrong: List docs without selectFields - Will exceed context window!`;
+
 
 
     /* Used to initialize the Tool without necessary variables. */
@@ -78,6 +90,7 @@ EXAMPLES:
       filter: z.string().optional().describe('OData filter expression (e.g., "file_category_ai eq \'U&A\'"'),
       facets: z.array(z.string()).optional().describe('Array of facetable field names to get counts/aggregations'),
       skip: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
+      selectFields: z.string().optional().describe('Comma-separated fields to return (e.g., "document_title,text_document_id") - CRITICAL for reducing tokens when listing documents'),
     });
 
     // Initialize properties using helper function
@@ -132,7 +145,7 @@ EXAMPLES:
 
   // Improved error handling and logging
   async _call(data) {
-    const { query, filter, facets, skip } = data;
+    const { query, filter, facets, skip, selectFields } = data;
     try {
       const searchOption = {
         queryType: this.queryType,
@@ -141,7 +154,10 @@ EXAMPLES:
       };
 
       // Add optional parameters
-      if (this.select) {
+      // selectFields from tool call takes precedence over environment variable
+      if (selectFields) {
+        searchOption.select = selectFields.split(',').map(f => f.trim());
+      } else if (this.select) {
         searchOption.select = this.select.split(',');
       }
       if (filter) {
