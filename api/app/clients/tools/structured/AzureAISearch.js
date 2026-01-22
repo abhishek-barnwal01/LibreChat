@@ -19,22 +19,33 @@ class AzureAISearch extends Tool {
     this.name = 'azure-ai-search';
     this.description = `Use 'azure-ai-search' to search and analyze documents in the knowledge base.
 
-MULTI-CALL STRATEGY:
-1. First call: Use facets to see what categories/types exist and their counts
-2. Subsequent calls: Use filter to fetch specific categories, use skip for pagination
+IMPORTANT: The index contains document CHUNKS, not whole documents. Each document is split into multiple chunks.
+
+MULTI-CALL STRATEGY FOR COUNTING DOCUMENTS:
+1. To count unique documents by category:
+   - Use filter to get chunks of that category
+   - Fetch multiple pages to get all chunks (5 per call)
+   - Count distinct "text_document_id" or "document_title" values
+   - Example: filter: "file_category_ai eq 'Usage/Attitude (U&A)'"
+
+2. To list document names:
+   - Use filter to get specific category
+   - Paginate through results
+   - Extract unique "document_title" values
 
 PARAMETERS:
 - query: Search term (use "*" for all documents)
-- filter: OData filter (e.g., "file_category_ai eq 'U&A'")
-- facets: Array of fields to aggregate (e.g., ["file_category_ai"])
+- filter: OData filter (e.g., "file_category_ai eq 'Usage/Attitude (U&A)'")
+- facets: Array of fields to aggregate (NOTE: counts will be chunks, not documents)
 - skip: Number of results to skip for pagination (default: 0)
 
 EXAMPLES:
-- To count categories: { query: "*", facets: ["file_category_ai"] }
-- To get U&A reports page 1: { query: "*", filter: "file_category_ai eq 'U&A'", skip: 0 }
-- To get U&A reports page 2: { query: "*", filter: "file_category_ai eq 'U&A'", skip: 5 }
+- Count U&A documents: Filter by category, fetch all chunks, count distinct text_document_id
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", skip: 0 }
+- List document titles: Fetch chunks and extract unique document_title values
 
-Make multiple calls to gather all needed documents (5 per call).`;
+FACET WARNING: Facet counts represent CHUNKS not DOCUMENTS. Do not use facet counts as document counts.`;
+
     /* Used to initialize the Tool without necessary variables. */
     this.override = fields.override ?? false;
 
@@ -137,6 +148,20 @@ Make multiple calls to gather all needed documents (5 per call).`;
       }
       response.returnedCount = response.documents.length;
 
+      // Calculate distinct document count in current batch
+      const uniqueDocIds = new Set();
+      const uniqueDocTitles = new Set();
+      for (const doc of response.documents) {
+        if (doc.text_document_id) {
+          uniqueDocIds.add(doc.text_document_id);
+        }
+        if (doc.document_title) {
+          uniqueDocTitles.add(doc.document_title);
+        }
+      }
+      response.uniqueDocumentsInBatch = uniqueDocIds.size || uniqueDocTitles.size;
+      response.documentTitles = Array.from(uniqueDocTitles);
+
       // Get total count if available
       if (searchResults.count !== undefined) {
         response.totalCount = searchResults.count;
@@ -152,6 +177,7 @@ Make multiple calls to gather all needed documents (5 per call).`;
           response.facets[facetName] = facetResults.map((item) => ({
             value: item.value,
             count: item.count,
+            note: 'This count represents chunks, not unique documents. For document count, fetch documents and count distinct text_document_id values.',
           }));
         }
       }
@@ -159,7 +185,12 @@ Make multiple calls to gather all needed documents (5 per call).`;
       // Add pagination guidance for the agent
       if (response.hasMoreResults) {
         response.nextSkip = (skip || 0) + response.returnedCount;
-        response.remainingDocuments = response.totalCount - ((skip || 0) + response.returnedCount);
+        response.remainingChunks = response.totalCount - ((skip || 0) + response.returnedCount);
+      }
+
+      // Add important note about chunk vs document counting
+      if (response.facets || response.totalCount > 0) {
+        response.important_note = 'totalCount and facet counts represent CHUNKS, not documents. To count unique documents, fetch chunks with filter and count distinct text_document_id or document_title values.';
       }
 
       return JSON.stringify(response, null, 2);
