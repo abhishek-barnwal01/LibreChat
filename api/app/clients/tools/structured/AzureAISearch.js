@@ -17,14 +17,33 @@ class AzureAISearch extends Tool {
   constructor(fields = {}) {
     super();
     this.name = 'azure-ai-search';
-    this.description =
-      "Use the 'azure-ai-search' tool to retrieve search results relevant to your input";
+    this.description = `Use 'azure-ai-search' to search and analyze documents in the knowledge base.
+
+MULTI-CALL STRATEGY:
+1. First call: Use facets to see what categories/types exist and their counts
+2. Subsequent calls: Use filter to fetch specific categories, use skip for pagination
+
+PARAMETERS:
+- query: Search term (use "*" for all documents)
+- filter: OData filter (e.g., "file_category_ai eq 'U&A'")
+- facets: Array of fields to aggregate (e.g., ["file_category_ai"])
+- skip: Number of results to skip for pagination (default: 0)
+
+EXAMPLES:
+- To count categories: { query: "*", facets: ["file_category_ai"] }
+- To get U&A reports page 1: { query: "*", filter: "file_category_ai eq 'U&A'", skip: 0 }
+- To get U&A reports page 2: { query: "*", filter: "file_category_ai eq 'U&A'", skip: 5 }
+
+Make multiple calls to gather all needed documents (5 per call).`;
     /* Used to initialize the Tool without necessary variables. */
     this.override = fields.override ?? false;
 
     // Define schema
     this.schema = z.object({
-      query: z.string().describe('Search word or phrase to Azure AI Search'),
+      query: z.string().describe('Search word or phrase to Azure AI Search. Use "*" to match all documents'),
+      filter: z.string().optional().describe('OData filter expression (e.g., "file_category_ai eq \'U&A\'"'),
+      facets: z.array(z.string()).optional().describe('Array of facetable field names to get counts/aggregations'),
+      skip: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
     });
 
     // Initialize properties using helper function
@@ -79,24 +98,78 @@ class AzureAISearch extends Tool {
 
   // Improved error handling and logging
   async _call(data) {
-    const { query } = data;
+    const { query, filter, facets, skip } = data;
     try {
       const searchOption = {
         queryType: this.queryType,
         top: typeof this.top === 'string' ? Number(this.top) : this.top,
+        includeTotalCount: true, // Include total count for pagination info
       };
+
+      // Add optional parameters
       if (this.select) {
         searchOption.select = this.select.split(',');
       }
-      const searchResults = await this.client.search(query, searchOption);
-      const resultDocuments = [];
-      for await (const result of searchResults.results) {
-        resultDocuments.push(result.document);
+      if (filter) {
+        searchOption.filter = filter;
       }
-      return JSON.stringify(resultDocuments);
+      if (facets && Array.isArray(facets) && facets.length > 0) {
+        searchOption.facets = facets;
+      }
+      if (skip && typeof skip === 'number') {
+        searchOption.skip = skip;
+      }
+
+      const searchResults = await this.client.search(query, searchOption);
+
+      // Build enhanced response
+      const response = {
+        documents: [],
+        totalCount: 0,
+        returnedCount: 0,
+        skip: skip || 0,
+        hasMoreResults: false,
+      };
+
+      // Extract documents
+      for await (const result of searchResults.results) {
+        response.documents.push(result.document);
+      }
+      response.returnedCount = response.documents.length;
+
+      // Get total count if available
+      if (searchResults.count !== undefined) {
+        response.totalCount = searchResults.count;
+        // Check if there are more results
+        const currentPosition = (skip || 0) + response.returnedCount;
+        response.hasMoreResults = currentPosition < response.totalCount;
+      }
+
+      // Extract facets if requested
+      if (facets && searchResults.facets) {
+        response.facets = {};
+        for (const [facetName, facetResults] of Object.entries(searchResults.facets)) {
+          response.facets[facetName] = facetResults.map((item) => ({
+            value: item.value,
+            count: item.count,
+          }));
+        }
+      }
+
+      // Add pagination guidance for the agent
+      if (response.hasMoreResults) {
+        response.nextSkip = (skip || 0) + response.returnedCount;
+        response.remainingDocuments = response.totalCount - ((skip || 0) + response.returnedCount);
+      }
+
+      return JSON.stringify(response, null, 2);
     } catch (error) {
       logger.error('Azure AI Search request failed', error);
-      return 'There was an error with Azure AI Search.';
+      return JSON.stringify({
+        error: 'Azure AI Search request failed',
+        message: error.message,
+        documents: [],
+      });
     }
   }
 }
