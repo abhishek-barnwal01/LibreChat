@@ -72,18 +72,18 @@ Example: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.p
 
 EXAMPLES:
 ✓ Count U&A reports (EFFICIENT - 1 call):
-  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title"] }
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
   → Count facet items = number of documents
 
 ✓ List all U&A reports (EFFICIENT - 1 call):
-  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title"] }
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
   → Extract facet values = document names
 
 ✓ Content search: { query: "Godrej growth 2022" } - NO facets
 
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
 
-✓ Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title"] }
+✓ Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title,count:1000"] }
 
 ✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search`;
 
