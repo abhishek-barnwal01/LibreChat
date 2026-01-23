@@ -24,18 +24,21 @@ IMPORTANT: The index contains document CHUNKS, not whole documents. Each documen
 ⚡ EFFICIENT DOCUMENT COUNTING (NEW - Use This First!):
 The index now has document_title and text_document_id as FACETABLE fields.
 To count or list unique documents:
-1. Use facets: ["document_title"] or facets: ["text_document_id"]
+1. Use facets: ["document_title,count:1000"] or facets: ["text_document_id,count:1000"]
+   - IMPORTANT: Add ",count:1000" to get up to 1000 unique documents (default is only 10!)
 2. Get results in 1 call instead of 20-30 calls
 3. Count of facet items = number of unique documents
 
 Example for "How many U&A reports?":
-{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title"] }
+{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
 → Returns facet with all unique document names + their chunk counts
 → Number of facet items = number of unique documents
 
 Example for "List all U&A reports":
-{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title"] }
+{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
 → Extract all facet values = complete list of document names
+
+WITHOUT ",count:1000" you'll only get 10 documents maximum!
 
 WHEN TO USE FACETS:
 1. Counting documents: facets: ["document_title"] or ["text_document_id"]
