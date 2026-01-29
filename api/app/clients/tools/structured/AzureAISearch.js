@@ -132,6 +132,12 @@ EXAMPLES:
       'AZURE_AI_SEARCH_SEARCH_OPTION_SELECT',
     );
 
+    // Initialize SAS token for blob storage URLs (optional)
+    this.blobSasToken = this._initializeField(
+      fields.AZURE_BLOB_SAS_TOKEN,
+      'AZURE_BLOB_SAS_TOKEN',
+    );
+
     // Check for required fields
     if (!this.override && (!this.serviceEndpoint || !this.indexName || !this.apiKey)) {
       throw new Error(
@@ -150,6 +156,38 @@ EXAMPLES:
       new AzureKeyCredential(this.apiKey),
       { apiVersion: this.apiVersion },
     );
+
+    // Bind the SAS token appender method
+    if (this.blobSasToken) {
+      this.appendSasToken = this._appendSasTokenToUrl.bind(this);
+    } else {
+      this.appendSasToken = null;
+    }
+  }
+
+  /**
+   * Appends SAS token to Azure Blob Storage URLs
+   * @param {string} url - The blob storage URL
+   * @returns {string} URL with SAS token appended
+   */
+  _appendSasTokenToUrl(url) {
+    if (!url || !this.blobSasToken) {
+      return url;
+    }
+
+    // Skip if SAS token already present
+    if (url.includes('sv=') || url.includes('sig=')) {
+      return url;
+    }
+
+    // Check if it's a blob storage URL
+    if (!url.includes('.blob.core.windows.net')) {
+      return url;
+    }
+
+    // Append SAS token
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}${this.blobSasToken}`;
   }
 
   // Improved error handling and logging
@@ -190,9 +228,16 @@ EXAMPLES:
         hasMoreResults: false,
       };
 
-      // Extract documents
+      // Extract documents and append SAS tokens to blob URLs
       for await (const result of searchResults.results) {
-        response.documents.push(result.document);
+        const doc = result.document;
+
+        // Append SAS token to content_path if it's a blob URL
+        if (doc.content_path && this.appendSasToken) {
+          doc.content_path = this.appendSasToken(doc.content_path);
+        }
+
+        response.documents.push(doc);
       }
       response.returnedCount = response.documents.length;
 
