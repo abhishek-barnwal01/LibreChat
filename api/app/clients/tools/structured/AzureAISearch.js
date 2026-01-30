@@ -30,16 +30,18 @@ To count or list unique documents:
 3. Count of facet items = number of unique documents
 
 Example for "How many U&A reports?":
-{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
+{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"] }
 → Returns facet with all unique document names + their chunk counts
 → Number of facet items = number of unique documents
 
 Example for "List all U&A reports" (with clickable links):
-{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
+{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 → Extract all facet values = complete list of document names
 → Use documents array to get content_path for creating links: [filename](content_path)
 
-CRITICAL FOR LISTING QUERIES: Always include selectFields: "document_title,content_path" to get URLs for clickable links!
+CRITICAL FOR LISTING QUERIES:
+1. Always include selectFields: "document_title,content_path" to get URLs for clickable links
+2. Always add "and text_document_id ne ''" to filter to exclude image chunks and get original PDF paths
 
 WITHOUT ",count:1000" you'll only get 10 documents maximum!
 
@@ -76,9 +78,16 @@ EXACT CATEGORY VALUES (file_category_ai) - Use these EXACT strings (case-sensiti
 - "Sales data" (lowercase 'd')
 - "Usage/Attitude (U&A)" (capital 'U' and 'A')
 
-CRITICAL: Filters are CASE-SENSITIVE! Always use exact values above.
-Wrong: "file_category_ai eq 'Concept Testing'" ❌
-Right: "file_category_ai eq 'Concept testing'" ✅
+CRITICAL FILTER RULES:
+1. Filters are CASE-SENSITIVE! Always use exact values above.
+   Wrong: "file_category_ai eq 'Concept Testing'" ❌
+   Right: "file_category_ai eq 'Concept testing'" ✅
+
+2. When listing documents with content_path, ALWAYS add "and text_document_id ne ''" to filter!
+   Why: Index has both text chunks (original PDFs) and image chunks (extracted images).
+   Without this filter, you may get image paths instead of PDF paths.
+   Wrong: "file_category_ai eq 'Brand equity'" → Returns image paths ❌
+   Right: "file_category_ai eq 'Brand equity' and text_document_id ne ''" → Returns PDF paths ✅
 
 PAGE-SPECIFIC SEARCHES:
 - The index has pageNumber field under locationMetadata
@@ -88,22 +97,26 @@ Example: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.p
 
 EXAMPLES:
 ✓ Count U&A reports (EFFICIENT - 1 call):
-  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"] }
   → Count facet items = number of documents
 
 ✓ List all U&A reports with links (EFFICIENT - 1 call):
-  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
   → Extract facet values for document names
   → Use documents array to get content_path for links: [filename](content_path)
 
 ✓ List concept testing reports with links:
-  { query: "*", filter: "file_category_ai eq 'Concept testing'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
+  { query: "*", filter: "file_category_ai eq 'Concept testing' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
+
+✓ List brand equity reports with links:
+  { query: "*", filter: "file_category_ai eq 'Brand equity' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 
 ✓ Content search: { query: "Godrej growth 2022" } - NO facets
 
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
 
-✓ Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
+✗ Wrong (gets image paths): { query: "*", filter: "file_category_ai eq 'Brand equity'", selectFields: "document_title,content_path" }
+✓ Right (gets PDF paths): { query: "*", filter: "file_category_ai eq 'Brand equity' and text_document_id ne ''", selectFields: "document_title,content_path" }
 
 ✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search`;
 
