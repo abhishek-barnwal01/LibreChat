@@ -54,7 +54,7 @@ Example: "Find Godrej growth reports" → Use query only, NO facets
 
 PARAMETERS:
 - query: Search term for content (use "*" when using filters/facets only)
-- filter: OData filter expressions:
+- filter: OData filter expressions (CASE-SENSITIVE! Use exact values below):
   * By category: "file_category_ai eq 'Usage/Attitude (U&A)'"
   * By page: "locationMetadata/pageNumber eq 6"
   * By document + page: "document_title eq 'Report.pdf' and locationMetadata/pageNumber eq 6"
@@ -63,6 +63,19 @@ PARAMETERS:
 - facets: Array of facetable fields ["document_title", "text_document_id", "file_category_ai", "content_path", etc.]
 - skip: Number of results to skip for pagination (default: 0)
 - selectFields: Comma-separated fields to return (e.g., "document_title,text_document_id")
+ 
+EXACT CATEGORY VALUES (file_category_ai) - Use these EXACT strings (case-sensitive):
+- "Brand equity" (lowercase 'e')
+- "Concept testing" (lowercase 't')
+- "Dipstick" (capital 'D')
+- "Household Penetration" (capital 'H' and 'P')
+- "Product testing" (lowercase 't')
+- "Sales data" (lowercase 'd')
+- "Usage/Attitude (U&A)" (capital 'U' and 'A')
+ 
+CRITICAL: Filters are CASE-SENSITIVE! Always use exact values above.
+Wrong: "file_category_ai eq 'Concept Testing'" ❌
+Right: "file_category_ai eq 'Concept testing'" ✅
 
 PAGE-SPECIFIC SEARCHES:
 - The index has pageNumber field under locationMetadata
@@ -76,14 +89,18 @@ EXAMPLES:
   → Count facet items = number of documents
 
 ✓ List all U&A reports (EFFICIENT - 1 call):
-  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
+   { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
   → Extract facet values = document names
+  → Use documents array to get content_path for links: [filename](content_path)
 
+✓ List concept testing reports with links:
+  { query: "*", filter: "file_category_ai eq 'Concept testing'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
+  
 ✓ Content search: { query: "Godrej growth 2022" } - NO facets
 
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
 
-✓ Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title,count:1000"] }
+✓ Documents in specific path: Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 
 ✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search`;
 

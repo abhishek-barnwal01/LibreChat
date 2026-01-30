@@ -1,14 +1,28 @@
-import { memo } from 'react';
-import { X, FileText } from 'lucide-react';
+import { memo, useCallback } from 'react';
+import { X, FileText, Download } from 'lucide-react';
 import { useGetBlobListQuery } from '~/data-provider';
 import { cn } from '~/utils';
+
+/** Extract just the filename from a blob path like "gcpl-allsoaps/filename.pdf" */
+const getDisplayName = (fullPath: string): string => {
+  const parts = fullPath.split('/');
+  return parts[parts.length - 1] || fullPath;
+};
 
 interface KnowledgeBaseProps {
   onClose: () => void;
 }
 
+const BLOB_DOWNLOAD_BASE = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-soaps-v2';
+const DOWNLOAD_SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupyx&se=2026-03-19T14:08:21Z&st=2026-01-30T05:53:21Z&spr=https&sig=nYKjE2yfrFEcncreXt%2BA0dM6zFLbvNeignb3ZrnWcn0%3D';
+
 const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
   const { data, isLoading, error } = useGetBlobListQuery();
+
+  const handleDownload = useCallback((blobName: string) => {
+    const encodedName = blobName.split('/').map(encodeURIComponent).join('/');
+    window.open(`${BLOB_DOWNLOAD_BASE}/${encodedName}?${DOWNLOAD_SAS_TOKEN}`, '_blank');
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -82,8 +96,12 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
                     {data.documents.map((doc, index) => (
                       <div
                         key={index}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handleDownload(doc.name)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDownload(doc.name); }}
                         className={cn(
-                          'group rounded-lg border border-border-light bg-surface-primary p-4 shadow-sm transition-all hover:shadow-md',
+                          'group cursor-pointer rounded-lg border border-border-light bg-surface-primary p-4 shadow-sm transition-all hover:shadow-md',
                           'hover:border-blue-300 dark:hover:border-blue-700',
                         )}
                       >
@@ -93,7 +111,7 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
                           </div>
                           <div className="min-w-0 flex-1">
                             <h3 className="break-words text-sm font-medium text-text-primary group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                              {doc.name}
+                              {getDisplayName(doc.name)}
                             </h3>
                             <div className="mt-2 space-y-1">
                               <p className="text-xs text-text-secondary">
@@ -105,6 +123,9 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
                                 {new Date(doc.lastModified).toLocaleDateString()}
                               </p>
                             </div>
+                          </div>
+                          <div className="flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
+                            <Download className="h-4 w-4 text-text-secondary" />
                           </div>
                         </div>
                       </div>
