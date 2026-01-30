@@ -34,9 +34,12 @@ Example for "How many U&A reports?":
 → Returns facet with all unique document names + their chunk counts
 → Number of facet items = number of unique documents
 
-Example for "List all U&A reports":
-{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
+Example for "List all U&A reports" (with clickable links):
+{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 → Extract all facet values = complete list of document names
+→ Use documents array to get content_path for creating links: [filename](content_path)
+
+CRITICAL FOR LISTING QUERIES: Always include selectFields: "document_title,content_path" to get URLs for clickable links!
 
 WITHOUT ",count:1000" you'll only get 10 documents maximum!
 
@@ -88,15 +91,19 @@ EXAMPLES:
   { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
   → Count facet items = number of documents
 
-✓ List all U&A reports (EFFICIENT - 1 call):
-  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
-  → Extract facet values = document names
+✓ List all U&A reports with links (EFFICIENT - 1 call):
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
+  → Extract facet values for document names
+  → Use documents array to get content_path for links: [filename](content_path)
+
+✓ List concept testing reports with links:
+  { query: "*", filter: "file_category_ai eq 'Concept testing'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 
 ✓ Content search: { query: "Godrej growth 2022" } - NO facets
 
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
 
-✓ Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title,count:1000"] }
+✓ Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 
 ✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search`;
 
