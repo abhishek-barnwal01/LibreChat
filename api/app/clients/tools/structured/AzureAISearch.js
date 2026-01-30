@@ -89,11 +89,24 @@ CRITICAL FILTER RULES:
    Wrong: "file_category_ai eq 'Brand equity'" → Returns image paths ❌
    Right: "file_category_ai eq 'Brand equity' and text_document_id ne ''" → Returns PDF paths ✅
 
+3. ALWAYS include page numbers in document citations!
+   Each search result contains locationMetadata.pageNumber - use it in your citations.
+   Format: 📄 [filename](content_path) (Page X)
+   Example: 📄 [Soaps UA 2024.pdf](https://...) (Page 15)
+   Multiple pages: 📄 [Report.pdf](https://...) (Pages 12, 15, 18)
+
 PAGE-SPECIFIC SEARCHES:
 - The index has pageNumber field under locationMetadata
 - To filter by page: use "locationMetadata/pageNumber eq [number]"
 - For specific document + page: combine filters with AND
 Example: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'"
+
+CRITICAL: ALWAYS INCLUDE PAGE NUMBERS IN CITATIONS
+- Each document in results contains locationMetadata.pageNumber
+- When citing documents, format as: 📄 [filename](content_path) (Page X)
+- Page numbers provide precise source attribution
+- Example: 📄 [Soaps Report 2024.pdf](https://...) (Page 15)
+- If a document has multiple relevant pages, list them: (Pages 12, 15, 18)
 
 EXAMPLES:
 ✓ Count U&A reports (EFFICIENT - 1 call):
@@ -111,7 +124,11 @@ EXAMPLES:
 ✓ List brand equity reports with links:
   { query: "*", filter: "file_category_ai eq 'Brand equity' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 
-✓ Content search: { query: "Godrej growth 2022" } - NO facets
+✓ Content search with page attribution:
+  { query: "product likability drivers" }
+  → Results include locationMetadata.pageNumber for each chunk
+  → In your answer, cite as: 📄 [Soaps UA 2024.pdf](https://...) (Page 23)
+  → ALWAYS extract and include the page number from locationMetadata!
 
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
 
