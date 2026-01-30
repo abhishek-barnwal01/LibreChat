@@ -54,7 +54,7 @@ Example: "Find Godrej growth reports" → Use query only, NO facets
 
 PARAMETERS:
 - query: Search term for content (use "*" when using filters/facets only)
-- filter: OData filter expressions:
+- filter: OData filter expressions (CASE-SENSITIVE! Use exact values below):
   * By category: "file_category_ai eq 'Usage/Attitude (U&A)'"
   * By page: "locationMetadata/pageNumber eq 6"
   * By document + page: "document_title eq 'Report.pdf' and locationMetadata/pageNumber eq 6"
@@ -63,6 +63,19 @@ PARAMETERS:
 - facets: Array of facetable fields ["document_title", "text_document_id", "file_category_ai", "content_path", etc.]
 - skip: Number of results to skip for pagination (default: 0)
 - selectFields: Comma-separated fields to return (e.g., "document_title,text_document_id")
+
+EXACT CATEGORY VALUES (file_category_ai) - Use these EXACT strings (case-sensitive):
+- "Brand equity" (lowercase 'e')
+- "Concept testing" (lowercase 't')
+- "Dipstick" (capital 'D')
+- "Household Penetration" (capital 'H' and 'P')
+- "Product testing" (lowercase 't')
+- "Sales data" (lowercase 'd')
+- "Usage/Attitude (U&A)" (capital 'U' and 'A')
+
+CRITICAL: Filters are CASE-SENSITIVE! Always use exact values above.
+Wrong: "file_category_ai eq 'Concept Testing'" ❌
+Right: "file_category_ai eq 'Concept testing'" ✅
 
 PAGE-SPECIFIC SEARCHES:
 - The index has pageNumber field under locationMetadata
