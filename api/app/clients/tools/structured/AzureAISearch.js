@@ -5,8 +5,8 @@ const { SearchClient, AzureKeyCredential } = require('@azure/search-documents');
 
 class AzureAISearch extends Tool {
   // Constants for default values
-  static DEFAULT_API_VERSION = '2023-11-01';
-  static DEFAULT_QUERY_TYPE = 'simple';
+  static DEFAULT_API_VERSION = '2025-11-01-preview';
+  static DEFAULT_QUERY_TYPE = 'full';
   static DEFAULT_TOP = 5;
 
   // Helper function for initializing properties
@@ -17,14 +17,89 @@ class AzureAISearch extends Tool {
   constructor(fields = {}) {
     super();
     this.name = 'azure-ai-search';
-    this.description =
-      "Use the 'azure-ai-search' tool to retrieve search results relevant to your input";
+    this.description = `Use 'azure-ai-search' to search and analyze documents in the knowledge base.
+
+IMPORTANT: The index contains document CHUNKS, not whole documents. Each document is split into multiple chunks.
+
+⚡ EFFICIENT DOCUMENT COUNTING (NEW - Use This First!):
+The index now has document_title and text_document_id as FACETABLE fields.
+To count or list unique documents:
+1. Use facets: ["document_title,count:1000"] or facets: ["text_document_id,count:1000"]
+   - IMPORTANT: Add ",count:1000" to get up to 1000 unique documents (default is only 10!)
+2. Get results in 1 call instead of 20-30 calls
+3. Count of facet items = number of unique documents
+
+Example for "How many U&A reports?":
+{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
+→ Returns facet with all unique document names + their chunk counts
+→ Number of facet items = number of unique documents
+
+Example for "List all U&A reports":
+{ query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
+→ Extract all facet values = complete list of document names
+
+WITHOUT ",count:1000" you'll only get 10 documents maximum!
+
+WHEN TO USE FACETS:
+1. Counting documents: facets: ["document_title"] or ["text_document_id"]
+2. Listing document names: facets: ["document_title"]
+3. Listing categories: facets: ["file_category_ai"]
+4. Counting by any facetable field
+
+WHEN NOT TO USE FACETS:
+- Searching for specific content/keywords
+- Finding documents by name/topic
+- Answering questions about document content
+Example: "Find Godrej growth reports" → Use query only, NO facets
+
+PARAMETERS:
+- query: Search term for content (use "*" when using filters/facets only)
+- filter: OData filter expressions:
+  * By category: "file_category_ai eq 'Usage/Attitude (U&A)'"
+  * By page: "locationMetadata/pageNumber eq 6"
+  * By document + page: "document_title eq 'Report.pdf' and locationMetadata/pageNumber eq 6"
+  * By path: "content_path eq '/reports/2023/'"
+  * Combine with "and" or "or"
+- facets: Array of facetable fields ["document_title", "text_document_id", "file_category_ai", "content_path", etc.]
+- skip: Number of results to skip for pagination (default: 0)
+- selectFields: Comma-separated fields to return (e.g., "document_title,text_document_id")
+
+PAGE-SPECIFIC SEARCHES:
+- The index has pageNumber field under locationMetadata
+- To filter by page: use "locationMetadata/pageNumber eq [number]"
+- For specific document + page: combine filters with AND
+Example: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'"
+
+EXAMPLES:
+✓ Count U&A reports (EFFICIENT - 1 call):
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
+  → Count facet items = number of documents
+
+✓ List all U&A reports (EFFICIENT - 1 call):
+  { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)'", facets: ["document_title,count:1000"] }
+  → Extract facet values = document names
+
+✓ Content search: { query: "Godrej growth 2022" } - NO facets
+
+✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
+
+✓ Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title,count:1000"] }
+
+✗ Wrong: { query: "Godrej", facets: ["file_category_ai"] } - Don't use facets for content search`;
+
+
+
+
     /* Used to initialize the Tool without necessary variables. */
     this.override = fields.override ?? false;
 
     // Define schema
     this.schema = z.object({
-      query: z.string().describe('Search word or phrase to Azure AI Search'),
+      query: z.string().describe('Search word or phrase to Azure AI Search. Use "*" to match all documents'),
+      filter: z.string().optional().describe('OData filter expression (e.g., "file_category_ai eq \'U&A\'"'),
+      facets: z.array(z.string()).optional().describe('Array of facetable field names to get counts/aggregations'),
+      skip: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
+      selectFields: z.string().optional().describe('Comma-separated fields to return (e.g., "document_title,text_document_id") - CRITICAL for reducing tokens when listing documents'),
     });
 
     // Initialize properties using helper function
@@ -57,6 +132,12 @@ class AzureAISearch extends Tool {
       'AZURE_AI_SEARCH_SEARCH_OPTION_SELECT',
     );
 
+    // Initialize SAS token for blob storage URLs (optional)
+    this.blobSasToken = this._initializeField(
+      fields.AZURE_BLOB_SAS_TOKEN,
+      'AZURE_BLOB_SAS_TOKEN',
+    );
+
     // Check for required fields
     if (!this.override && (!this.serviceEndpoint || !this.indexName || !this.apiKey)) {
       throw new Error(
@@ -75,28 +156,159 @@ class AzureAISearch extends Tool {
       new AzureKeyCredential(this.apiKey),
       { apiVersion: this.apiVersion },
     );
+
+    // Bind the SAS token appender method
+    if (this.blobSasToken) {
+      this.appendSasToken = this._appendSasTokenToUrl.bind(this);
+    } else {
+      this.appendSasToken = null;
+    }
+  }
+
+  /**
+   * Appends SAS token to Azure Blob Storage URLs
+   * @param {string} url - The blob storage URL
+   * @returns {string} URL with SAS token appended
+   */
+  _appendSasTokenToUrl(url) {
+    if (!url || !this.blobSasToken) {
+      return url;
+    }
+
+    // Skip if SAS token already present
+    if (url.includes('sv=') || url.includes('sig=')) {
+      return url;
+    }
+
+    // Check if it's a blob storage URL
+    if (!url.includes('.blob.core.windows.net')) {
+      return url;
+    }
+
+    // Append SAS token
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}${this.blobSasToken}`;
   }
 
   // Improved error handling and logging
   async _call(data) {
-    const { query } = data;
+    const { query, filter, facets, skip, selectFields } = data;
     try {
       const searchOption = {
         queryType: this.queryType,
         top: typeof this.top === 'string' ? Number(this.top) : this.top,
+        includeTotalCount: true, // Include total count for pagination info
       };
-      if (this.select) {
+
+      // Add optional parameters
+      // selectFields from tool call takes precedence over environment variable
+      if (selectFields) {
+        searchOption.select = selectFields.split(',').map(f => f.trim());
+      } else if (this.select) {
         searchOption.select = this.select.split(',');
       }
-      const searchResults = await this.client.search(query, searchOption);
-      const resultDocuments = [];
-      for await (const result of searchResults.results) {
-        resultDocuments.push(result.document);
+      if (filter) {
+        searchOption.filter = filter;
       }
-      return JSON.stringify(resultDocuments);
+      if (facets && Array.isArray(facets) && facets.length > 0) {
+        searchOption.facets = facets;
+      }
+      if (skip && typeof skip === 'number') {
+        searchOption.skip = skip;
+      }
+
+      const searchResults = await this.client.search(query, searchOption);
+
+      // Build enhanced response
+      const response = {
+        documents: [],
+        totalCount: 0,
+        returnedCount: 0,
+        skip: skip || 0,
+        hasMoreResults: false,
+      };
+
+      // Extract documents and append SAS tokens to blob URLs
+      for await (const result of searchResults.results) {
+        const doc = result.document;
+
+        // Append SAS token to content_path if it's a blob URL
+        if (doc.content_path && this.appendSasToken) {
+          doc.content_path = this.appendSasToken(doc.content_path);
+        }
+
+        response.documents.push(doc);
+      }
+      response.returnedCount = response.documents.length;
+
+      // Calculate distinct document count in current batch
+      const uniqueDocIds = new Set();
+      const uniqueDocTitles = new Set();
+      for (const doc of response.documents) {
+        if (doc.text_document_id) {
+          uniqueDocIds.add(doc.text_document_id);
+        }
+        if (doc.document_title) {
+          uniqueDocTitles.add(doc.document_title);
+        }
+      }
+      response.uniqueDocumentsInBatch = uniqueDocIds.size || uniqueDocTitles.size;
+      response.documentTitles = Array.from(uniqueDocTitles);
+
+      // Get total count if available
+      if (searchResults.count !== undefined) {
+        response.totalCount = searchResults.count;
+        // Check if there are more results
+        const currentPosition = (skip || 0) + response.returnedCount;
+        response.hasMoreResults = currentPosition < response.totalCount;
+      }
+
+      // Extract facets if requested
+      if (facets && searchResults.facets) {
+        response.facets = {};
+        for (const [facetName, facetResults] of Object.entries(searchResults.facets)) {
+          // Check if this is a document-identifying facet
+          const isDocumentFacet = facetName === 'document_title' || facetName === 'text_document_id';
+
+          response.facets[facetName] = facetResults.map((item) => ({
+            value: item.value,
+            count: item.count,
+          }));
+
+          // Add appropriate guidance based on facet type
+          if (isDocumentFacet) {
+            response.facets[`${facetName}_note`] = `Number of items in this facet (${facetResults.length}) = number of unique documents. The 'count' field shows how many chunks belong to each document.`;
+            response.uniqueDocumentCount = facetResults.length;
+          } else {
+            response.facets[`${facetName}_note`] = `This facet shows categories/values. The 'count' field represents chunks, not unique documents.`;
+          }
+        }
+      }
+
+      // Add pagination guidance for the agent
+      if (response.hasMoreResults) {
+        response.nextSkip = (skip || 0) + response.returnedCount;
+        response.remainingChunks = response.totalCount - ((skip || 0) + response.returnedCount);
+      }
+
+      // Add important note about chunk vs document counting
+      if (response.totalCount > 0 && !response.uniqueDocumentCount) {
+        response.important_note = 'totalCount represents CHUNKS, not documents. To count unique documents, use facets: ["document_title"] or ["text_document_id"].';
+      }
+
+      // Add summary if we have unique document count
+      if (response.uniqueDocumentCount) {
+        response.summary = `Found ${response.uniqueDocumentCount} unique documents (out of ${response.totalCount} total chunks).`;
+      }
+
+      return JSON.stringify(response, null, 2);
     } catch (error) {
       logger.error('Azure AI Search request failed', error);
-      return 'There was an error with Azure AI Search.';
+      return JSON.stringify({
+        error: 'Azure AI Search request failed',
+        message: error.message,
+        documents: [],
+      });
     }
   }
 }
