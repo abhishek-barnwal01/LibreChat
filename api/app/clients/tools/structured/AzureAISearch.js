@@ -200,16 +200,12 @@ EXAMPLES:
 
   /**
    * Appends SAS token to Azure Blob Storage URLs
+   * Strips any existing SAS tokens first to ensure fresh authentication
    * @param {string} url - The blob storage URL
-   * @returns {string} URL with SAS token appended
+   * @returns {string} URL with fresh SAS token appended
    */
   _appendSasTokenToUrl(url) {
     if (!url || !this.blobSasToken) {
-      return url;
-    }
-
-    // Skip if SAS token already present
-    if (url.includes('sv=') || url.includes('sig=')) {
       return url;
     }
 
@@ -218,9 +214,12 @@ EXAMPLES:
       return url;
     }
 
-    // Append SAS token
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}${this.blobSasToken}`;
+    // Strip any existing query string (which may contain old SAS tokens)
+    // This ensures we always use the fresh SAS token from environment
+    const baseUrl = url.split('?')[0];
+
+    // Append fresh SAS token
+    return `${baseUrl}?${this.blobSasToken}`;
   }
 
   // Improved error handling and logging
