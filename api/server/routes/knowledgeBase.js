@@ -6,7 +6,9 @@ const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
 const router = express.Router();
 
 // Azure Blob Storage configuration
-const BLOB_API_URL = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-poc?restype=container&comp=list&sv=2024-11-04&ss=bfqt&srt=c&sp=rwdlacupyx&se=2026-01-05T16:40:58Z&st=2026-01-05T08:25:58Z&spr=https&sig=zLwDBXvvXUOTqNlUcybhkdlePNY0Vd83eQ6zgB5uFA0%3D';
+const BLOB_API_URL = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-soap?restype=container&comp=list&prefix=gcpl-allsoaps/&sv=2024-11-04&ss=bfqt&srt=c&sp=rwdlacupyx&se=2026-03-19T15:43:36Z&st=2026-01-19T07:28:36Z&spr=https&sig=OoHZbdmTr06nN6I4q6ggv7lBm4IpzxmsmdcfgP32MV0%3D';
+const BLOB_DOWNLOAD_BASE = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-soap';
+const DOWNLOAD_SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupyx&se=2026-03-19T14:08:21Z&st=2026-01-30T05:53:21Z&spr=https&sig=nYKjE2yfrFEcncreXt%2BA0dM6zFLbvNeignb3ZrnWcn0%3D';
 
 /**
  * GET /api/knowledge-base/blobs
@@ -52,6 +54,28 @@ router.get('/blobs', requireJwtAuth, async (req, res) => {
         message: error.message,
       });
     }
+  }
+});
+
+/**
+ * GET /api/knowledge-base/download
+ * Redirects to Azure Blob Storage download URL for a given blob
+ */
+router.get('/download', requireJwtAuth, (req, res) => {
+  try {
+    const { name } = req.query;
+    if (!name) {
+      return res.status(400).json({ error: 'Missing "name" query parameter' });
+    }
+
+    const encodedName = encodeURIComponent(name).replace(/%2F/g, '/');
+    const downloadUrl = `${BLOB_DOWNLOAD_BASE}/${encodedName}?${DOWNLOAD_SAS_TOKEN}`;
+
+    logger.info(`[KnowledgeBase] Redirecting download for: ${name}`);
+    return res.redirect(downloadUrl);
+  } catch (error) {
+    logger.error('[KnowledgeBase] Error generating download URL:', error.message);
+    return res.status(500).json({ error: 'Failed to generate download URL' });
   }
 });
 
