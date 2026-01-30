@@ -13,11 +13,15 @@ interface KnowledgeBaseProps {
   onClose: () => void;
 }
 
+const BLOB_DOWNLOAD_BASE = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-soap';
+const DOWNLOAD_SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupyx&se=2026-03-19T14:08:21Z&st=2026-01-30T05:53:21Z&spr=https&sig=nYKjE2yfrFEcncreXt%2BA0dM6zFLbvNeignb3ZrnWcn0%3D';
+
 const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
   const { data, isLoading, error } = useGetBlobListQuery();
 
   const handleDownload = useCallback((blobName: string) => {
-    window.open(`/api/knowledge-base/download?name=${encodeURIComponent(blobName)}`, '_blank');
+    const encodedName = blobName.split('/').map(encodeURIComponent).join('/');
+    window.open(`${BLOB_DOWNLOAD_BASE}/${encodedName}?${DOWNLOAD_SAS_TOKEN}`, '_blank');
   }, []);
 
   return (
