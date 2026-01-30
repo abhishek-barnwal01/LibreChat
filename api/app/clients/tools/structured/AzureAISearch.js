@@ -37,11 +37,14 @@ Example for "How many U&A reports?":
 Example for "List all U&A reports" (with clickable links):
 { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 → Extract all facet values = complete list of document names
-→ Use documents array to get content_path for creating links: [filename](content_path)
+→ For each facet name, find matching document in documents array
+→ Use that document's content_path for creating clickable links: 📄 [filename](content_path)
+→ DO NOT reconstruct URLs from document titles - content_path has SAS tokens already appended
 
 CRITICAL FOR LISTING QUERIES:
 1. Always include selectFields: "document_title,content_path" to get URLs for clickable links
 2. Always add "and text_document_id ne ''" to filter to exclude image chunks and get original PDF paths
+3. NEVER reconstruct URLs from document titles - ALWAYS use content_path from documents array (it has SAS tokens)
 
 WITHOUT ",count:1000" you'll only get 10 documents maximum!
 
@@ -115,8 +118,17 @@ EXAMPLES:
 
 ✓ List all U&A reports with links (EFFICIENT - 1 call):
   { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
-  → Extract facet values for document names
-  → Use documents array to get content_path for links: [filename](content_path)
+
+  CRITICAL - How to extract URLs correctly:
+  → facets.document_title gives you unique document names (for counting/listing titles)
+  → documents array contains actual content_path URLs (with SAS tokens already appended)
+  → For each facet value, find matching document in documents array and use its content_path
+  → DO NOT reconstruct URLs from document titles - ALWAYS use content_path from documents array
+  → Example flow:
+    1. facets.document_title[0].value = "Report.pdf" (title only, no URL)
+    2. Find in documents: documents.find(d => d.document_title === "Report.pdf")
+    3. Use: documents[X].content_path (this has the SAS token)
+    4. Output: 📄 [Report.pdf](documents[X].content_path)
 
 ✓ List concept testing reports with links:
   { query: "*", filter: "file_category_ai eq 'Concept testing' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
