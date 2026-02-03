@@ -29,25 +29,6 @@ def get_embedding(text: str) -> list:
         return None
 
 
-def append_sas_token(url: str) -> str:
-    """
-    Append SAS token to Azure Blob Storage URLs.
-    Strips any existing SAS tokens first to ensure fresh authentication.
-    """
-    if not url or not config.AZURE_BLOB_SAS_TOKEN:
-        return url
-
-    # Check if it's a blob storage URL
-    if '.blob.core.windows.net' not in url:
-        return url
-
-    # Strip any existing query string (which may contain old SAS tokens)
-    base_url = url.split('?')[0]
-
-    # Append fresh SAS token
-    return f"{base_url}?{config.AZURE_BLOB_SAS_TOKEN}"
-
-
 # Default fields for main_data index (all retrievable fields except content_embedding)
 MAIN_DATA_SELECT_FIELDS = [
     "content_id",
@@ -211,9 +192,6 @@ def azure_ai_search(
             title = result.get("document_title", "")
             source = result.get("content_path", result.get("document_title", "unknown"))
 
-            # Append SAS token to content_path if it's a blob URL
-            source = append_sas_token(source)
-
             if index_type == "main_data":
                 # Extract locationMetadata (nested complex type)
                 location_metadata = result.get("locationMetadata", {})
@@ -229,7 +207,7 @@ def azure_ai_search(
                     "document_title": title,
                     "image_document_id": result.get("image_document_id", ""),
                     "content": content[:1000],
-                    "content_path": source,  # Now has SAS token appended
+                    "content_path": source,
                     "page_number": page_number,
                     "bounding_polygon": bounding_polygon,
                     "file_category_ai": result.get("file_category_ai", ""),
@@ -246,7 +224,7 @@ def azure_ai_search(
                     "id": result.get("content_id"),
                     "content": full_content[:1000],
                     "score": result.get("@search.score", 0.0),
-                    "source": source,  # Also has SAS token appended
+                    "source": source,
                 }
 
             docs.append(doc)

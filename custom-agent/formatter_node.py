@@ -93,7 +93,7 @@ RAG'S RAW ANSWER (Unformatted)
 {rag_final_answer}
 
 ==================================================
-RETRIEVED DOCUMENTS (with URLs and SAS tokens)
+RETRIEVED DOCUMENTS (with URLs)
 ==================================================
 {json.dumps(retrieved_docs, indent=2, default=str) if retrieved_docs else "No retrieved docs"}
 
@@ -135,14 +135,14 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
    - List all referenced documents/reports as bullet points
    - Format: - Always use 📄 [filename](content_path)
    - Always include page number when available: 📄 [filename](content_path) (Page N)
-   - Example: - 📄 [Soaps Annual Presentation 2022 - Nielsen IQ RMS](https://...?sv=...) (Page 5)
+   - Example: - 📄 [Soaps Annual Presentation 2022 - Nielsen IQ RMS](https://...) (Page 5)
    - Extract cleaned filename by removing UUID prefix
    - Format as markdown links
 
    ⚡ CRITICAL: Use RETRIEVED DOCUMENTS for URLs
    - If the RAG answer mentions documents but doesn't include clickable links
    - Look up each document name in the RETRIEVED DOCUMENTS section above
-   - Extract the content_path (which has the SAS token)
+   - Extract the content_path from the retrieved document
    - Create clickable markdown links: 📄 [filename](content_path)
    - DO NOT create links without content_path - always use the URLs from RETRIEVED DOCUMENTS
 
