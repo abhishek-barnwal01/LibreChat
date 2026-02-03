@@ -470,134 +470,41 @@ Output JSON schema:
   "total_searches": int
 }}
 
-⚡⚡⚡ CRITICAL: POPULATING retrieved_docs ARRAY ⚡⚡⚡
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ MANDATORY: When building retrieved_docs, you MUST extract content_path from the tool results!
+⚡ CRITICAL: BUILDING retrieved_docs ARRAY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+When tool returns faceted results, it includes a pre-mapped "document_list" field:
 
-THE PROBLEM: Sometimes you return retrieved_docs with EMPTY content_path (""). This is WRONG!
-
-WHY IT HAPPENS: You look at facets but forget to extract content_path from docs[] array.
-
-THE FIX: ALWAYS map facet titles to docs[] array to get the full URL.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXAMPLE OF WHAT THE TOOL RETURNS:
 {{
-  "docs": [
-    {{"document_title": "Soaps UA 2024.pdf", "content_path": "https://gcplcmiadls001.blob.core.windows.net/gcpl-soaps-v2/soaps_188/Soaps%20UA%202024_Full%20Report_V2.pdf", "score": 1.0, "page_number": 5}},
-    {{"document_title": "Soaps UA 2024.pdf", "content_path": "https://gcplcmiadls001.blob.core.windows.net/gcpl-soaps-v2/soaps_188/Soaps%20UA%202024_Full%20Report_V2.pdf", "score": 1.0, "page_number": 12}},
-    {{"document_title": "Soaps U&A 2017.pdf", "content_path": "https://gcplcmiadls001.blob.core.windows.net/gcpl-soaps-v2/soaps_188/Soaps%20U&A%202017_Full%20Report_030418.pdf", "score": 1.0, "page_number": 8}}
-  ],
-  "facets": {{
-    "document_title": [
-      {{"value": "Soaps UA 2024.pdf", "count": 180}},
-      {{"value": "Soaps U&A 2017.pdf", "count": 240}}
-    ]
-  }}
-}}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP-BY-STEP: HOW TO BUILD retrieved_docs:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Step 1: Loop through facets["document_title"]
-For facet = {{"value": "Soaps UA 2024.pdf", "count": 180}}:
-
-Step 2: Extract document name from facet
-document_name = facet["value"] = "Soaps UA 2024.pdf"
-
-Step 3: Find matching doc in docs[] array
-Search docs[] for FIRST item where doc["document_title"] == "Soaps UA 2024.pdf"
-Found: {{"document_title": "Soaps UA 2024.pdf", "content_path": "https://gcplcmiadls001.blob.core.windows.net/...", "score": 1.0}}
-
-Step 4: Extract content_path from that doc
-url = doc["content_path"] = "https://gcplcmiadls001.blob.core.windows.net/gcpl-soaps-v2/soaps_188/Soaps%20UA%202024_Full%20Report_V2.pdf"
-
-Step 5: Create RetrievedDoc with extracted URL
-{{
-  "filename": "Soaps UA 2024.pdf",          ← from facet["value"]
-  "content_path": "https://gcplcmiadls001.blob.core.windows.net/...",  ← from doc["content_path"]
-  "score": 1.0,                              ← from doc["score"]
-  "pages": "various",
-  "description": "Facet count: 180 chunks"
-}}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FULL EXAMPLE OUTPUT (CORRECT):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{{
-  "retrieved_docs": [
-    {{
-      "filename": "Soaps UA 2024.pdf",
-      "content_path": "https://gcplcmiadls001.blob.core.windows.net/gcpl-soaps-v2/soaps_188/Soaps%20UA%202024_Full%20Report_V2.pdf",
-      "score": 1.0,
-      "pages": "various",
-      "description": "Facet count: 180 chunks"
-    }},
-    {{
-      "filename": "Soaps U&A 2017.pdf",
-      "content_path": "https://gcplcmiadls001.blob.core.windows.net/gcpl-soaps-v2/soaps_188/Soaps%20U&A%202017_Full%20Report_030418.pdf",
-      "score": 1.0,
-      "pages": "various",
-      "description": "Facet count: 240 chunks"
-    }}
+  "docs": [...],
+  "facets": {{"document_title": [...]}},
+  "document_list": [
+    {{"title": "Soaps UA 2024.pdf", "url": "https://gcplcmiadls001.blob.core.windows.net/.../Report.pdf", "count": 180, "score": 1.0}},
+    {{"title": "Soaps U&A 2017.pdf", "url": "https://gcplcmiadls001.blob.core.windows.net/.../Report2.pdf", "count": 240, "score": 1.0}}
   ]
 }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-❌ COMMON MISTAKES (DO NOT DO THIS):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TO BUILD retrieved_docs:
+1. If "document_list" exists in tool response → Use it directly!
+   - filename = item["title"]
+   - content_path = item["url"]
+   - score = item["score"]
+   - description = f"Facet count: {{item['count']}} chunks"
 
-MISTAKE #1: Leaving content_path empty
+2. If "document_list" doesn't exist → Extract from docs[] array as usual
+
+EXAMPLE OUTPUT:
 {{
   "retrieved_docs": [
-    {{"filename": "Soaps UA 2024.pdf", "content_path": "", "score": 0.0}}  ← WRONG!
+    {{"filename": "Soaps UA 2024.pdf", "content_path": "https://gcplcmiadls001.blob.core.windows.net/.../Report.pdf", "score": 1.0, "pages": "various", "description": "Facet count: 180 chunks"}},
+    {{"filename": "Soaps U&A 2017.pdf", "content_path": "https://gcplcmiadls001.blob.core.windows.net/.../Report2.pdf", "score": 1.0, "pages": "various", "description": "Facet count: 240 chunks"}}
   ]
 }}
-WHY WRONG: You didn't look up the URL in docs[] array
 
-MISTAKE #2: Using only filename
-{{
-  "retrieved_docs": [
-    {{"filename": "Soaps UA 2024.pdf", "content_path": "Soaps UA 2024.pdf"}}  ← WRONG!
-  ]
-}}
-WHY WRONG: content_path must be a full URL, not just a filename
-
-MISTAKE #3: Inventing URLs
-{{
-  "retrieved_docs": [
-    {{"filename": "Soaps UA 2024.pdf", "content_path": "https://storage.../Report.pdf"}}  ← WRONG!
-  ]
-}}
-WHY WRONG: You made up a URL instead of using the one from docs[]
-
-MISTAKE #4: Only using facets, ignoring docs
-You see facets with document names but forget docs[] array exists
-Result: Empty content_path ← WRONG!
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ VALIDATION CHECKLIST (DO THIS BEFORE RETURNING):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Before you return retrieved_docs, verify:
-☑ Did I look at BOTH facets AND docs arrays?
-☑ For each facet, did I find matching doc in docs[]?
-☑ Did I extract content_path from docs[]?
-☑ Is every content_path a full URL starting with "https://"?
-☑ Did I include ALL facets in retrieved_docs (not filter)?
-☑ Are there NO empty content_path values ("")?
-
-IF ANY CHECKBOX IS UNCHECKED → GO BACK AND FIX IT!
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-REMEMBER:
-- facets = gives you document NAMES (titles)
-- docs = gives you document URLS (content_path)
-- You need BOTH to build retrieved_docs correctly
-- NEVER leave content_path empty!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ RULES:
+- NEVER leave content_path empty ("")
+- content_path must be a full URL starting with "https://"
+- Include ALL items from document_list (don't filter)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 QUALITY STANDARDS
 - CMI-grade professional tone
