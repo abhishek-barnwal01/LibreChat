@@ -72,13 +72,9 @@ def azure_ai_search(
         index_type: "main_data" or "semantic" (two separate indexes)
         top_k: Number of results (1-100)
         filter: (MAIN_DATA INDEX ONLY) OData filter expression (CASE-SENSITIVE!). Examples:
-            - "file_category_ai eq 'Usage/Attitude (U&A)'" (capital 'U' and 'A')
+            - "file_category_ai eq 'Usage/Attitude (U&A)'"
             - "file_category_ai eq 'Brand equity'" (lowercase 'e')
             - "file_category_ai eq 'Concept testing'" (lowercase 't')
-            - "file_category_ai eq 'Dipstick'" (capital 'D')
-            - "file_category_ai eq 'Household Penetration'" (capital 'H' and 'P')
-            - "file_category_ai eq 'Product testing'" (lowercase 't')
-            - "file_category_ai eq 'Sales data'" (lowercase 'd')
             - "locationMetadata/pageNumber eq 6"
             - "document_title eq 'Report.pdf' and locationMetadata/pageNumber eq 6"
             - Combine with 'and' / 'or'
@@ -316,3 +312,4 @@ def azure_ai_search(
                 "query": query
             }
         })
+    
