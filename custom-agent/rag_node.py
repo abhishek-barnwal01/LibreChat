@@ -266,11 +266,13 @@ PARAMETERS:
 
 EXACT CATEGORY VALUES (file_category_ai) - Use these EXACT strings (case-sensitive):
 - "Brand equity" (lowercase 'e')
+- "Brand track" (lowercase 't')
 - "Concept testing" (lowercase 't')
-- "Dipstick" (capital 'D')
-- "Household Penetration" (capital 'H' and 'P')
-- "Product testing" (lowercase 't')
-- "Sales data" (lowercase 'd')
+- "Link testing" (lowercase 't')
+- "Annual presentation" (lowercase 'p')
+- "Media Optimization" (capital 'O')
+- "Product acceptance testing" (lowercase 'a' and 't')
+- "Miscellaneous" (capital 'M')
 - "Usage/Attitude (U&A)" (capital 'U' and 'A')
 
 CRITICAL FILTER RULES:
@@ -308,26 +310,8 @@ EXAMPLES:
   → Response includes:
      - facets["document_title"]: Array of all unique documents with their counts
      - docs[]: Array of document chunks with metadata (content_path, file_time_period_ai, etc.)
-
-  CRITICAL - How to extract URLs and build retrieved_docs:
-  1. Loop through each facet in facets["document_title"]
-  2. For each facet.value (document title), find the FIRST matching doc in docs[] array
-  3. Extract that doc's content_path (full blob URL)
-  4. Create RetrievedDoc with:
-     - filename: facet.value (document title)
-     - content_path: doc.content_path (from docs array - full URL!)
-     - score: doc.score
-     - pages: "various" (or extract from locationMetadata if available)
-     - description: Include facet count and any relevant metadata
-  5. DO NOT reconstruct URLs - ALWAYS use content_path from docs array
-  6. DO NOT leave content_path empty - it MUST have the full URL
-
-  Example mapping:
-  facets["document_title"][0] = {"value": "Report.pdf", "count": 100}
-  → Find in docs: docs.find(d => d.document_title === "Report.pdf")
-  → Get: docs[X].content_path = "https://gcplcmiadls001.blob.core.windows.net/.../Report.pdf"
-  → Use this URL in retrieved_docs[0].content_path
-
+  → Extract all document names from facets
+  → For each document, find its content_path in docs array
   → Format and present all documents in ONE formatted response
   → DO NOT make additional individual calls per document!
 
@@ -469,42 +453,6 @@ Output JSON schema:
   "reasoning": "string",
   "total_searches": int
 }}
-
-⚡ CRITICAL: BUILDING retrieved_docs ARRAY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-When tool returns faceted results, it includes a pre-mapped "document_list" field:
-
-{{
-  "docs": [...],
-  "facets": {{"document_title": [...]}},
-  "document_list": [
-    {{"title": "Soaps UA 2024.pdf", "url": "https://gcplcmiadls001.blob.core.windows.net/.../Report.pdf", "count": 180, "score": 1.0}},
-    {{"title": "Soaps U&A 2017.pdf", "url": "https://gcplcmiadls001.blob.core.windows.net/.../Report2.pdf", "count": 240, "score": 1.0}}
-  ]
-}}
-
-TO BUILD retrieved_docs:
-1. If "document_list" exists in tool response → Use it directly!
-   - filename = item["title"]
-   - content_path = item["url"]
-   - score = item["score"]
-   - description = f"Facet count: {{item['count']}} chunks"
-
-2. If "document_list" doesn't exist → Extract from docs[] array as usual
-
-EXAMPLE OUTPUT:
-{{
-  "retrieved_docs": [
-    {{"filename": "Soaps UA 2024.pdf", "content_path": "https://gcplcmiadls001.blob.core.windows.net/.../Report.pdf", "score": 1.0, "pages": "various", "description": "Facet count: 180 chunks"}},
-    {{"filename": "Soaps U&A 2017.pdf", "content_path": "https://gcplcmiadls001.blob.core.windows.net/.../Report2.pdf", "score": 1.0, "pages": "various", "description": "Facet count: 240 chunks"}}
-  ]
-}}
-
-✅ RULES:
-- NEVER leave content_path empty ("")
-- content_path must be a full URL starting with "https://"
-- Include ALL items from document_list (don't filter)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 QUALITY STANDARDS
 - CMI-grade professional tone
