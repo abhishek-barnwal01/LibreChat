@@ -52,6 +52,13 @@ def formatter_node(state: PipelineState) -> Dict[str, Any]:
     rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
     confidence = state.evaluation.confidence_score if state.evaluation else 0.8
 
+    # Extract retrieved_docs for fallback link generation
+    retrieved_docs = []
+    if state.rag_output and hasattr(state.rag_output, 'retrieved_docs'):
+        retrieved_docs = state.rag_output.retrieved_docs if isinstance(state.rag_output, dict) else state.rag_output.get('retrieved_docs', [])
+    elif state.rag_output and isinstance(state.rag_output, dict):
+        retrieved_docs = state.rag_output.get('retrieved_docs', [])
+
     # DEBUG: Print the full RAG output
     print("\n" + "-"*70)
     print("🐛 DEBUG: RAG OUTPUT RECEIVED")
@@ -60,6 +67,9 @@ def formatter_node(state: PipelineState) -> Dict[str, Any]:
         print(f"RAG Output Type: {type(state.rag_output)}")
         print(f"RAG Output Keys: {state.rag_output.keys() if hasattr(state.rag_output, 'keys') else 'N/A (not dict)'}")
         print(f"\nFull RAG Output:\n{json.dumps(state.rag_output, indent=2, default=str)}")
+        print(f"\n📊 Retrieved Docs Count: {len(retrieved_docs)}")
+        if retrieved_docs:
+            print(f"   Sample doc 1: {retrieved_docs[0] if len(retrieved_docs) > 0 else 'N/A'}")
     else:
         print("⚠️ RAG Output is None!")
     print("-"*70)
@@ -81,6 +91,11 @@ USER'S QUESTION
 RAG'S RAW ANSWER (Unformatted)
 ==================================================
 {rag_final_answer}
+
+==================================================
+RETRIEVED DOCUMENTS (with URLs and SAS tokens)
+==================================================
+{json.dumps(retrieved_docs, indent=2, default=str) if retrieved_docs else "No retrieved docs"}
 
 ==================================================
 CONFIDENCE SCORE: {confidence:.2f} / 1.00
@@ -120,9 +135,16 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
    - List all referenced documents/reports as bullet points
    - Format: - Always use 📄 [filename](content_path)
    - Always include page number when available: 📄 [filename](content_path) (Page N)
-   - Example: - *Soaps Annual Presentation 2022 - Nielsen IQ RMS* (Page 5)
+   - Example: - 📄 [Soaps Annual Presentation 2022 - Nielsen IQ RMS](https://...?sv=...) (Page 5)
    - Extract cleaned filename by removing UUID prefix
    - Format as markdown links
+
+   ⚡ CRITICAL: Use RETRIEVED DOCUMENTS for URLs
+   - If the RAG answer mentions documents but doesn't include clickable links
+   - Look up each document name in the RETRIEVED DOCUMENTS section above
+   - Extract the content_path (which has the SAS token)
+   - Create clickable markdown links: 📄 [filename](content_path)
+   - DO NOT create links without content_path - always use the URLs from RETRIEVED DOCUMENTS
 
 5. CLARITY & READABILITY
    - Use short paragraphs (2-4 sentences max)

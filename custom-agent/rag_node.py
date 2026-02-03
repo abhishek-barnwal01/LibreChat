@@ -266,13 +266,11 @@ PARAMETERS:
 
 EXACT CATEGORY VALUES (file_category_ai) - Use these EXACT strings (case-sensitive):
 - "Brand equity" (lowercase 'e')
-- "Brand track" (lowercase 't')
 - "Concept testing" (lowercase 't')
-- "Link testing" (lowercase 't')
-- "Annual presentation" (lowercase 'p')
-- "Media Optimization" (capital 'O')
-- "Product acceptance testing" (lowercase 'a' and 't')
-- "Miscellaneous" (capital 'M')
+- "Dipstick" (capital 'D')
+- "Household Penetration" (capital 'H' and 'P')
+- "Product testing" (lowercase 't')
+- "Sales data" (lowercase 'd')
 - "Usage/Attitude (U&A)" (capital 'U' and 'A')
 
 CRITICAL FILTER RULES:
@@ -310,8 +308,26 @@ EXAMPLES:
   → Response includes:
      - facets["document_title"]: Array of all unique documents with their counts
      - docs[]: Array of document chunks with metadata (content_path, file_time_period_ai, etc.)
-  → Extract all document names from facets
-  → For each document, find its content_path in docs array
+
+  CRITICAL - How to extract URLs and build retrieved_docs:
+  1. Loop through each facet in facets["document_title"]
+  2. For each facet.value (document title), find the FIRST matching doc in docs[] array
+  3. Extract that doc's content_path (which already has SAS token)
+  4. Create RetrievedDoc with:
+     - filename: facet.value (document title)
+     - content_path: doc.content_path (from docs array - has SAS token!)
+     - score: doc.score
+     - pages: "various" (or extract from locationMetadata if available)
+     - description: Include facet count and any relevant metadata
+  5. DO NOT reconstruct URLs - ALWAYS use content_path from docs array
+  6. DO NOT leave content_path empty - it MUST have the full URL with SAS token
+
+  Example mapping:
+  facets["document_title"][0] = {"value": "Report.pdf", "count": 100}
+  → Find in docs: docs.find(d => d.document_title === "Report.pdf")
+  → Get: docs[X].content_path = "https://...blob.../Report.pdf?sv=..."
+  → Use this URL in retrieved_docs[0].content_path
+
   → Format and present all documents in ONE formatted response
   → DO NOT make additional individual calls per document!
 
@@ -453,6 +469,49 @@ Output JSON schema:
   "reasoning": "string",
   "total_searches": int
 }}
+
+⚡⚡⚡ CRITICAL: POPULATING retrieved_docs ARRAY ⚡⚡⚡
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+When the tool returns results, you receive two key structures:
+1. facets: {{ "document_title": [{{"value": "Report.pdf", "count": 100}}, ...] }}
+2. docs: [{{"document_title": "Report.pdf", "content_path": "https://...?sv=...", ...}}, ...]
+
+TO BUILD retrieved_docs ARRAY CORRECTLY:
+Step 1: Get unique document names from facets["document_title"]
+Step 2: For EACH facet value (document name):
+   - Find the matching document in docs[] array
+   - Look up: docs.find(d => d["document_title"] === facet["value"])
+   - Extract content_path from that doc
+Step 3: Create RetrievedDoc object:
+   - filename: facet["value"] (the document title)
+   - content_path: docs[X]["content_path"] (MUST be the full URL with SAS token from tool results!)
+   - score: docs[X]["score"]
+   - pages: "various" or specific pages if known
+   - description: Brief description including facet count
+
+❌ WRONG - Empty content_path:
+{{
+  "retrieved_docs": [
+    {{"filename": "Report.pdf", "content_path": "", "score": 0.0, "pages": "various", "description": "..."}}
+  ]
+}}
+
+✅ RIGHT - content_path from docs array:
+{{
+  "retrieved_docs": [
+    {{"filename": "Report.pdf", "content_path": "https://gcplcmiadls001.blob.core.windows.net/.../Report.pdf?sv=2024-11-04&sig=...", "score": 1.0, "pages": "various", "description": "..."}}
+  ]
+}}
+
+VALIDATION CHECKLIST:
+☑ Did I extract content_path from the docs[] array returned by the tool?
+☑ Is content_path a full URL with SAS token (not empty string)?
+☑ Did I match each facet document name to its corresponding doc in docs[] array?
+☑ Did I include ALL documents from facets in retrieved_docs (not just a subset)?
+
+REMEMBER: The tool already appended SAS tokens to all content_path values in docs[].
+You just need to extract them and include them in retrieved_docs. DO NOT leave them empty!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 QUALITY STANDARDS
 - CMI-grade professional tone
