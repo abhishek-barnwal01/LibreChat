@@ -481,13 +481,29 @@ QUALITY STANDARDS
 
     agent_messages = list(initial_messages)
     all_new_messages = []
-    max_iterations = 8  # Increased from 5 to allow more tool calls
+    max_iterations = 8  # Total iterations allowed
+    synthesis_threshold = 6  # Start pushing for synthesis at iteration 6
     response = None
     iteration_count = 0
 
     for iteration in range(max_iterations):
         iteration_count = iteration + 1
         print(f"\n🔄 RAG Iteration {iteration_count}/{max_iterations}")
+
+        # If approaching limit, inject "stop searching, synthesize" message and remove tools
+        if iteration_count == synthesis_threshold:
+            print(f"⚠️  Approaching iteration limit - forcing synthesis mode (no more tools)")
+            synthesis_reminder = (
+                "human",
+                "You have retrieved sufficient document content. "
+                "DO NOT make any more tool calls. "
+                "Now synthesize your final answer in RAGOutput JSON format with the data you've already gathered. "
+                "Include all retrieved documents with their content_path URLs."
+            )
+            agent_messages.append(synthesis_reminder)
+            # Switch to LLM without tools to force synthesis
+            llm_with_tools = create_llm()
+            print(f"✓ Switched to LLM without tools for final synthesis")
 
         try:
             # 🔹 Filter sensitive content from messages before sending
@@ -496,7 +512,7 @@ QUALITY STANDARDS
                 if hasattr(msg, 'content') and isinstance(msg.content, str):
                     msg.content = filter_sensitive_content(msg.content)
                 filtered_messages.append(msg)
-            
+
             response = llm_with_tools.invoke(filtered_messages)
 
         except ValueError as e:
@@ -535,6 +551,11 @@ QUALITY STANDARDS
         all_new_messages.append(response)
 
         if response.tool_calls:
+            # After synthesis_threshold, ignore any tool calls (shouldn't happen with tools removed)
+            if iteration_count >= synthesis_threshold:
+                print(f"⚠️  Ignoring tool calls after synthesis threshold")
+                break
+
             tool_messages = execute_tool_calls(response.tool_calls, tools_map)
 
             # 🔹 Sanitize all tool messages
@@ -550,32 +571,23 @@ QUALITY STANDARDS
 
     raw_output = response.content if response else ""
 
-    # Check if we hit max_iterations without a final answer
-    if not raw_output and iteration_count >= max_iterations:
-        print(f"\n⚠️ Hit max iterations ({max_iterations}) - forcing final synthesis")
-        print(f"   Making one final call without tools to generate answer...")
-
-        # Remove tools and force final answer
+    # Fallback: if still no output after loop (rare edge case)
+    if not raw_output:
+        print(f"\n⚠️ No output after {iteration_count} iterations - making final synthesis call")
         llm_no_tools = create_llm()
-        synthesis_prompt = f"""Based on all the document chunks retrieved above, synthesize a comprehensive answer to the user's question.
+        synthesis_prompt = f"""Based on all the document chunks retrieved in the conversation above, synthesize your answer.
 
 User Query: {user_query}
 Enriched Query: {enriched_query}
 
-Generate your response in the RAGOutput JSON format with:
-- retrieved_docs: List of documents (with filename, content_path, score, pages, description)
-- final_answer: Your synthesized answer with page citations
-- search_strategy: Summary of your search approach
-- reasoning: Your reasoning process
-- total_searches: {iteration_count}
-
-CRITICAL: Extract content_path URLs from the tool results above. Do NOT leave content_path empty!"""
+Generate RAGOutput JSON with retrieved_docs (including content_path URLs) and final_answer.
+Total searches: {iteration_count}"""
 
         agent_messages.append(("human", synthesis_prompt))
         response = llm_no_tools.invoke(agent_messages)
         raw_output = response.content if response else ""
         all_new_messages.append(response)
-        print(f"✓ Generated final answer ({len(raw_output)} chars)")
+        print(f"✓ Fallback synthesis generated ({len(raw_output)} chars)")
 
     # DEBUG: Print raw output before parsing
     print("\n" + "-"*70)
