@@ -42,7 +42,7 @@ export default function Root() {
   });
   const [rightSidebarVisible, setRightSidebarVisible] = useState(() => {
     const savedRightSidebarVisible = localStorage.getItem('rightSidebarVisible');
-    return savedRightSidebarVisible !== null ? JSON.parse(savedRightSidebarVisible) : true;
+    return savedRightSidebarVisible !== null ? JSON.parse(savedRightSidebarVisible) : false;
   });
 
   const [isHoveringRight, setIsHoveringRight] = useState(false);
@@ -145,6 +145,13 @@ export default function Root() {
       return newValue;
     });
   }, []);
+
+  // Sync the resizable panel with the initial rightSidebarVisible state
+  useEffect(() => {
+    if (!rightSidebarVisible) {
+      rightPanelRef.current?.collapse();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isAuthenticated) {
     return null;
