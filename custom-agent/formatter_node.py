@@ -149,7 +149,7 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
    - Don't add information not in the RAW answer
    - Retain all important details
 
-9. ADVANCED FORMATTING OPTIONS
+8. ADVANCED FORMATTING OPTIONS
    - Code Blocks: Use triple backticks with language for examples
      ```python
      def calculate_growth(old, new):
