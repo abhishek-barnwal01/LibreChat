@@ -146,13 +146,6 @@ export default function Root() {
     });
   }, []);
 
-  // Sync the resizable panel with the initial rightSidebarVisible state
-  useEffect(() => {
-    if (!rightSidebarVisible) {
-      rightPanelRef.current?.collapse();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   if (!isAuthenticated) {
     return null;
   }
@@ -217,7 +210,7 @@ export default function Root() {
                   )}
 
                   {/* Center Chat Area */}
-                  <ResizablePanel defaultSize={75} minSize={30}>
+                  <ResizablePanel defaultSize={rightSidebarVisible ? 75 : 93} minSize={30}>
                     <main className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
                       <Outlet context={{ navVisible, setNavVisible } satisfies ContextType} />
                     </main>
@@ -246,7 +239,7 @@ export default function Root() {
                   {/* Right Sidebar */}
                   <ResizablePanel
                     ref={rightPanelRef}
-                    defaultSize={18}
+                    defaultSize={rightSidebarVisible ? 18 : 0}
                     minSize={15}
                     maxSize={40}
                     collapsible
