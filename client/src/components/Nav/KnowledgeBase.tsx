@@ -1,5 +1,5 @@
-import { memo, useCallback } from 'react';
-import { X, FileText, Download } from 'lucide-react';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { X, FileText, Download, Search } from 'lucide-react';
 import { useGetBlobListQuery } from '~/data-provider';
 import { cn } from '~/utils';
 
@@ -18,6 +18,18 @@ const DOWNLOAD_SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupyx&se=2026-0
 
 const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
   const { data, isLoading, error } = useGetBlobListQuery();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredDocuments = useMemo(() => {
+    if (!data?.documents) {
+      return [];
+    }
+    if (!searchQuery.trim()) {
+      return data.documents;
+    }
+    const query = searchQuery.toLowerCase().trim();
+    return data.documents.filter((doc) => getDisplayName(doc.name).toLowerCase().includes(query));
+  }, [data?.documents, searchQuery]);
 
   const handleDownload = useCallback((blobName: string) => {
     const encodedName = blobName.split('/').map(encodeURIComponent).join('/');
@@ -50,8 +62,40 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
           </button>
         </div>
 
+        {/* Search Bar */}
+        {data && !isLoading && !error && (
+          <div className="border-b border-border-light px-6 py-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search documents by name..."
+                className="w-full rounded-lg border border-border-light bg-surface-secondary py-2 pl-10 pr-10 text-sm text-text-primary placeholder-text-secondary outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                aria-label="Search documents"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-text-secondary transition-colors hover:text-text-primary"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Content */}
-        <div className="h-[calc(100%-88px)] overflow-y-auto p-6">
+        <div
+          className={cn(
+            'overflow-y-auto p-6',
+            data && !isLoading && !error ? 'h-[calc(100%-88px-57px)]' : 'h-[calc(100%-88px)]',
+          )}
+        >
           {isLoading && (
             <div className="flex h-full items-center justify-center">
               <div className="text-center">
@@ -81,19 +125,26 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
                   </div>
                   <div>
                     <p className="text-sm font-medium uppercase tracking-wide text-text-secondary">
-                      Total Documents
+                      {searchQuery.trim() ? 'Matching Documents' : 'Total Documents'}
                     </p>
-                    <p className="text-4xl font-bold text-text-primary">{data.totalCount as number}</p>
+                    <p className="text-4xl font-bold text-text-primary">
+                      {filteredDocuments.length}
+                      {searchQuery.trim() && (
+                        <span className="ml-2 text-lg font-normal text-text-secondary">
+                          of {data.totalCount as number}
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>
 
               {/* Documents List */}
-              {(data.totalCount as number) > 0 && (
+              {filteredDocuments.length > 0 && (
                 <div>
                   <h2 className="mb-4 text-lg font-semibold text-text-primary">Documents</h2>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {data.documents.map((doc, index) => (
+                    {filteredDocuments.map((doc, index) => (
                       <div
                         key={index}
                         role="button"
@@ -134,7 +185,25 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
                 </div>
               )}
 
-              {(data.totalCount as number) === 0 && (
+              {filteredDocuments.length === 0 && searchQuery.trim() && (
+                <div className="flex h-64 items-center justify-center">
+                  <div className="text-center">
+                    <Search className="mx-auto h-12 w-12 text-text-secondary opacity-50" />
+                    <p className="mt-4 text-text-secondary">
+                      No documents matching &ldquo;{searchQuery.trim()}&rdquo;
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="mt-2 text-sm text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      Clear search
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {(data.totalCount as number) === 0 && !searchQuery.trim() && (
                 <div className="flex h-64 items-center justify-center">
                   <div className="text-center">
                     <FileText className="mx-auto h-12 w-12 text-text-secondary opacity-50" />
