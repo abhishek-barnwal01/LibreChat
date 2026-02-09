@@ -1,7 +1,7 @@
 import * as Ariakit from '@ariakit/react';
 import { matchSorter } from 'match-sorter';
 import { Search, ChevronDown } from 'lucide-react';
-import { useMemo, useState, useRef, memo, useEffect } from 'react';
+import { useMemo, useState, useRef, memo } from 'react';
 import { SelectRenderer } from '@ariakit/react-core/select/select-renderer';
 import type { OptionWithIcon } from '~/common';
 import './AnimatePopover.css';
@@ -48,7 +48,6 @@ function ControlCombobox({
 }: ControlComboboxProps) {
   const [searchValue, setSearchValue] = useState('');
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [buttonWidth, setButtonWidth] = useState<number | null>(null);
 
   const getItem = (option: OptionWithIcon) => ({
     id: `item-${option.value}`,
@@ -78,12 +77,6 @@ function ControlCombobox({
     });
     return filteredItems.map(getItem);
   }, [searchValue, items]);
-
-  useEffect(() => {
-    if (buttonRef.current && !isCollapsed) {
-      setButtonWidth(buttonRef.current.offsetWidth);
-    }
-  }, [isCollapsed]);
 
   const selectIconClassName = cn(
     'flex h-5 w-5 items-center justify-center overflow-hidden rounded-full',
@@ -133,10 +126,11 @@ function ControlCombobox({
         store={select}
         gutter={4}
         portal
+        sameWidth={!isCollapsed}
         className={cn(
           'animate-popover z-50 overflow-hidden rounded-xl border border-border-light bg-surface-secondary shadow-lg',
         )}
-        style={{ width: isCollapsed ? '300px' : (buttonWidth ?? '300px') }}
+        style={isCollapsed ? { width: '300px' } : undefined}
       >
         <div className="py-1.5">
           <div className="relative">
