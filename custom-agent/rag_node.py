@@ -481,10 +481,14 @@ QUALITY STANDARDS
 
     agent_messages = list(initial_messages)
     all_new_messages = []
-    max_iterations = 5
+    max_iterations = 8  # Increased from 5 to allow more tool calls
     response = None
+    iteration_count = 0
 
     for iteration in range(max_iterations):
+        iteration_count = iteration + 1
+        print(f"\n🔄 RAG Iteration {iteration_count}/{max_iterations}")
+
         try:
             # 🔹 Filter sensitive content from messages before sending
             filtered_messages = []
@@ -541,25 +545,76 @@ QUALITY STANDARDS
             agent_messages.extend(tool_messages)
             all_new_messages.extend(tool_messages)
         else:
+            print(f"✓ Agent completed search (no more tool calls)")
             break
 
     raw_output = response.content if response else ""
+
+    # Check if we hit max_iterations without a final answer
+    if not raw_output and iteration_count >= max_iterations:
+        print(f"\n⚠️ Hit max iterations ({max_iterations}) - forcing final synthesis")
+        print(f"   Making one final call without tools to generate answer...")
+
+        # Remove tools and force final answer
+        llm_no_tools = create_llm()
+        synthesis_prompt = f"""Based on all the document chunks retrieved above, synthesize a comprehensive answer to the user's question.
+
+User Query: {user_query}
+Enriched Query: {enriched_query}
+
+Generate your response in the RAGOutput JSON format with:
+- retrieved_docs: List of documents (with filename, content_path, score, pages, description)
+- final_answer: Your synthesized answer with page citations
+- search_strategy: Summary of your search approach
+- reasoning: Your reasoning process
+- total_searches: {iteration_count}
+
+CRITICAL: Extract content_path URLs from the tool results above. Do NOT leave content_path empty!"""
+
+        agent_messages.append(("human", synthesis_prompt))
+        response = llm_no_tools.invoke(agent_messages)
+        raw_output = response.content if response else ""
+        all_new_messages.append(response)
+        print(f"✓ Generated final answer ({len(raw_output)} chars)")
 
     # DEBUG: Print raw output before parsing
     print("\n" + "-"*70)
     print("🐛 DEBUG: RAG NODE - Raw LLM Output")
     print("-"*70)
+    print(f"Iterations used: {iteration_count}/{max_iterations}")
     print(f"Raw Output Length: {len(raw_output)} chars")
     print(f"Raw Output (first 500 chars):\n{raw_output[:500]}")
     print(f"Raw Output (last 500 chars):\n{raw_output[-500:]}")
     print(f"Total docs count in raw output: {raw_output.count('filename')}")
     print("-"*70)
 
-    llm_structured = create_llm().with_structured_output(
-        RAGOutput, method="function_calling"
-    )
-    output: RAGOutput = llm_structured.invoke(raw_output)
-    
+    # Parse raw output into structured RAGOutput
+    if raw_output:
+        llm_structured = create_llm().with_structured_output(
+            RAGOutput, method="function_calling"
+        )
+        try:
+            output: RAGOutput = llm_structured.invoke(raw_output)
+        except Exception as parse_error:
+            print(f"\n⚠️ Error parsing RAGOutput: {parse_error}")
+            print(f"   Creating fallback RAGOutput")
+            output = RAGOutput(
+                retrieved_docs=[],
+                final_answer=f"Error processing search results. Please try rephrasing your question.\n\nDebug: {str(parse_error)[:200]}",
+                search_strategy=f"Completed {iteration_count} iterations with multiple tool calls",
+                reasoning="Failed to parse final output into structured format",
+                total_searches=iteration_count
+            )
+    else:
+        print(f"\n⚠️ No raw output generated - creating error response")
+        output = RAGOutput(
+            retrieved_docs=[],
+            final_answer="Unable to generate response. The agent completed multiple searches but did not produce a final answer.",
+            search_strategy=f"Completed {iteration_count} iterations",
+            reasoning="Agent loop completed but generated no output",
+            total_searches=iteration_count
+        )
+
     # DEBUG: Print structured output before returning
     print("\n" + "-"*70)
     print("🐛 DEBUG: RAG NODE - Structured Output")
