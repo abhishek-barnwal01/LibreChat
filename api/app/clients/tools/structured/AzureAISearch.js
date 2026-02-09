@@ -111,6 +111,13 @@ CRITICAL: ALWAYS INCLUDE PAGE NUMBERS IN CITATIONS
 - Example: 📄 [Soaps Report 2024.pdf](https://...) (Page 15)
 - If a document has multiple relevant pages, list them: (Pages 12, 15, 18)
 
+RESPONSE FORMATTING - MINIMAL EMOJI USAGE:
+- ONLY use 📄 emoji for document citations in the Sources section at the end
+- DO NOT use emojis in the main response body (no ✓, ✗, ⚡, 🔹, 📈, 📉, 🎯, etc.)
+- Keep responses clean and professional with minimal decoration
+- Use markdown formatting (bold, headers, lists, tables) for structure
+- Focus on delivering clear, actionable information without excessive styling
+
 EXAMPLES:
 ✓ Count U&A reports (EFFICIENT - 1 call):
   { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"] }

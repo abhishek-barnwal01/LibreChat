@@ -109,63 +109,44 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
 
 1. STRUCTURE & SECTIONS
    - Start with a brief, direct answer to the question (1-2 sentences)
-   - Use clear section headers with ### for different topics
-   - Separate distinct concepts into logical sections
+   - Use ### for main sections ONLY when necessary (don't overuse)
    - Add blank lines between sections for readability
+   - Keep structure simple and clean
 
 2. KEY INFORMATION FORMATTING
    - Use **bold** for important numbers, metrics, and key findings
    - Use bullet points (-) for lists of items
    - Use numbered lists (1.) for sequential information or steps
-   - Use *italics* for source names, document titles, and time periods
+   - Use *italics* sparingly for emphasis
 
 3. DATA PRESENTATION
    - Format percentages clearly: **+16.6% YoY** or **41.6% penetration**
    - Format comparisons: **Brand A** vs **Brand B**
-   - Create markdown tables when comparing multiple data points
-   - Example table:
-     | Metric | Value | Change |
-     |--------|-------|--------|
-     | Sales  | $10M  | +15%   |
-   - Highlight trends: 📈 for growth, 📉 for decline (when appropriate)
-   - Use visual data relationships, including Mermaid diagrams when appropriate
+   - Create markdown tables when comparing multiple data points (keep tables simple)
+   - Use Mermaid diagrams ONLY when they significantly enhance understanding (not for every response)
 
 4. CITATIONS & SOURCES
    - At the end, add a "### Sources" section
    - List all referenced documents/reports as bullet points
-   - Format: - Always use 📄 [filename](content_path)
-   - Always include page number when available: 📄 [filename](content_path) (Page N)
-   - Example: - 📄 [Soaps Annual Presentation 2022 - Nielsen IQ RMS](https://...) (Page 5)
+   - Format: 📄 [filename](content_path) (Page N)
+   - Example: 📄 [Soaps Annual Presentation 2022](https://...) (Page 5)
    - Extract cleaned filename by removing UUID prefix
-   - Format as markdown links
-
-   ⚡ CRITICAL: Use RETRIEVED DOCUMENTS for URLs
-   - If the RAG answer mentions documents but doesn't include clickable links
-   - Look up each document name in the RETRIEVED DOCUMENTS section above
-   - Extract the content_path from the retrieved document
-   - Create clickable markdown links: 📄 [filename](content_path)
-   - DO NOT create links without content_path - always use the URLs from RETRIEVED DOCUMENTS
+   - Use RETRIEVED DOCUMENTS section above to get URLs
 
 5. CLARITY & READABILITY
    - Use short paragraphs (2-4 sentences max)
    - Break up long walls of text
-   - Use line breaks generously
-   - Make it scannable - readers should quickly find what they need
+   - Make it scannable
+   - Natural, conversational tone - not overly formal
 
-6. CONFIDENCE DISCLAIMERS
-   - If confidence < 0.85: Add a note at the top or bottom
-   - Format: > Note: This answer has moderate confidence. Please verify critical details from the original sources.
-   - If confidence < 0.65: Be more explicit about uncertainty
-   - Format: > Disclaimer: The confidence in this answer is low. Please review the source documents for accurate information.
+6. EMOJI USAGE - MINIMAL!
+   - ONLY use 📄 for document citations in Sources section
+   - DO NOT use emojis like 📈 📉 ✓ ✗ 🔹 etc. in the main content
+   - Keep the response professional and clean
 
-7. CONVERSATIONAL TONE
-   - Make it friendly but professional
-   - Use "Based on the data..." or "According to..."
-   - Maintain natural language, not robotic
-
-8. PRESERVE ACCURACY
+7. PRESERVE ACCURACY
    - Keep ALL numbers, dates, and facts EXACTLY as provided
-   - Add only information that was in the RAW answer
+   - Don't add information not in the RAW answer
    - Retain all important details
 
 9. ADVANCED FORMATTING OPTIONS
