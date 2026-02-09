@@ -137,11 +137,6 @@ export default function Root() {
     setRightSidebarVisible((prev) => {
       const newValue = !prev;
       localStorage.setItem('rightSidebarVisible', JSON.stringify(newValue));
-      if (!newValue) {
-        rightPanelRef.current?.collapse();
-      } else {
-        rightPanelRef.current?.expand();
-      }
       return newValue;
     });
   }, []);
@@ -210,7 +205,7 @@ export default function Root() {
                   )}
 
                   {/* Center Chat Area */}
-                  <ResizablePanel defaultSize={rightSidebarVisible ? 75 : 93} minSize={30}>
+                  <ResizablePanel defaultSize={rightSidebarVisible ? 75 : 100} minSize={30}>
                     <main className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
                       <Outlet context={{ navVisible, setNavVisible } satisfies ContextType} />
                     </main>
@@ -237,20 +232,22 @@ export default function Root() {
                   )}
 
                   {/* Right Sidebar */}
-                  <ResizablePanel
-                    ref={rightPanelRef}
-                    defaultSize={rightSidebarVisible ? 18 : 0}
-                    minSize={15}
-                    maxSize={40}
-                    collapsible
-                    collapsedSize={0}
-                    onCollapse={() => setRightSidebarVisible(false)}
-                    onExpand={() => setRightSidebarVisible(true)}
-                  >
-                    <aside className="flex h-full w-full flex-col overflow-hidden">
-                      <RightSidebar onPromptClick={handlePromptClick} />
-                    </aside>
-                  </ResizablePanel>
+                  {rightSidebarVisible && (
+                    <ResizablePanel
+                      ref={rightPanelRef}
+                      defaultSize={18}
+                      minSize={15}
+                      maxSize={40}
+                      collapsible
+                      collapsedSize={0}
+                      onCollapse={() => setRightSidebarVisible(false)}
+                      onExpand={() => setRightSidebarVisible(true)}
+                    >
+                      <aside className="flex h-full w-full flex-col overflow-hidden">
+                        <RightSidebar onPromptClick={handlePromptClick} />
+                      </aside>
+                    </ResizablePanel>
+                  )}
                 </ResizablePanelGroup>
               </div>
             </PromptGroupsProvider>
