@@ -353,6 +353,53 @@ EXAMPLES:
             linkMap[doc.document_title] = doc.content_path;
           }
         }
+
+        // If we have document_title facets, check for titles missing from linkMap
+        // and do a targeted follow-up search to get their content_path URLs
+        if (response.facets && response.facets.document_title) {
+          const facetTitles = response.facets.document_title.map(f => f.value);
+          const missingTitles = facetTitles.filter(title => !linkMap[title]);
+
+          if (missingTitles.length > 0) {
+            try {
+              // Build OData filter: (document_title eq 'A' or document_title eq 'B' or ...)
+              const titleFilters = missingTitles
+                .map(t => `document_title eq '${t.replace(/'/g, "''")}'`)
+                .join(' or ');
+              // Combine with original filter to stay in the same category, but also
+              // require blob URL content_path (exclude image chunks)
+              let followUpFilter = `(${titleFilters})`;
+              if (filter) {
+                followUpFilter = `(${filter}) and (${titleFilters})`;
+              }
+
+              const followUpResults = await this.client.search('*', {
+                queryType: this.queryType,
+                top: missingTitles.length * 3, // a few chunks per doc is enough
+                filter: followUpFilter,
+                select: ['document_title', 'content_path'],
+              });
+
+              for await (const result of followUpResults.results) {
+                const doc = result.document;
+                if (
+                  doc.document_title &&
+                  doc.content_path &&
+                  doc.content_path.includes('.blob.core.windows.net') &&
+                  !linkMap[doc.document_title]
+                ) {
+                  if (this.appendSasToken) {
+                    doc.content_path = this.appendSasToken(doc.content_path);
+                  }
+                  linkMap[doc.document_title] = doc.content_path;
+                }
+              }
+            } catch (followUpError) {
+              logger.warn('Follow-up search for missing document links failed', followUpError);
+            }
+          }
+        }
+
         if (Object.keys(linkMap).length > 0) {
           response.documentLinks = linkMap;
           response._url_instructions = 'IMPORTANT: When creating clickable links, ALWAYS use the EXACT URLs from documentLinks. These URLs contain required authentication tokens. NEVER truncate, shorten, or reconstruct URLs. Copy them exactly as-is including all query parameters (?sv=...&sig=...).';
