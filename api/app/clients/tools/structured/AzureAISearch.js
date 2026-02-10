@@ -37,11 +37,14 @@ Example for "How many U&A reports?":
 Example for "List all U&A reports" (with clickable links):
 { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 → Extract all facet values = complete list of document names
-→ Use documents array to get content_path for creating links: [filename](content_path)
+→ Use the "documentLinks" object in the response for clickable links: [filename](documentLinks[filename])
+→ documentLinks maps each document title to its FULL authenticated URL (with SAS token)
 
 CRITICAL FOR LISTING QUERIES:
 1. Always include selectFields: "document_title,content_path" to get URLs for clickable links
 2. Always add "and text_document_id ne ''" to filter to exclude image chunks and get original PDF paths
+3. ALWAYS use URLs from "documentLinks" in the response - NEVER reconstruct or shorten URLs
+4. URLs contain required SAS authentication tokens (?sv=...&sig=...) - removing them breaks the link
 
 WITHOUT ",count:1000" you'll only get 10 documents maximum!
 
@@ -110,9 +113,9 @@ EXAMPLES:
 
 ✓ List all U&A reports with links (EFFICIENT - 1 call):
   { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
-  → Extract facet values for document names
-  → Use documents array to get content_path for links: [filename](content_path)
-  → DO NOT reconstruct URLs from document titles - ALWAYS use content_path from documents array
+  → Facet values = document names, documentLinks = title-to-URL map
+  → Create links using: [title](documentLinks[title]) — URLs include SAS tokens
+  → NEVER reconstruct or shorten URLs — copy the full URL from documentLinks exactly as-is
 
 ✓ List concept testing reports with links:
   { query: "*", filter: "file_category_ai eq 'Concept testing' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
@@ -255,6 +258,14 @@ EXAMPLES:
       }
       if (facets && Array.isArray(facets) && facets.length > 0) {
         searchOption.facets = facets;
+        // When using facets to list documents, increase top to get content_path
+        // for more unique documents (default top=5 is far too low)
+        const hasDocumentFacet = facets.some(f =>
+          f.startsWith('document_title') || f.startsWith('text_document_id'),
+        );
+        if (hasDocumentFacet && selectFields && selectFields.includes('content_path')) {
+          searchOption.top = Math.max(searchOption.top, 100);
+        }
       }
       if (skip && typeof skip === 'number') {
         searchOption.skip = skip;
@@ -324,6 +335,32 @@ EXAMPLES:
             response.uniqueDocumentCount = facetResults.length;
           } else {
             response.facets[`${facetName}_note`] = `This facet shows categories/values. The 'count' field represents chunks, not unique documents.`;
+          }
+        }
+      }
+
+      // Build documentLinks map: title → SAS-tokened URL (one per unique document)
+      // This gives the LLM a clean lookup for every document title
+      if (response.documents.length > 0) {
+        const linkMap = {};
+        for (const doc of response.documents) {
+          if (
+            doc.document_title &&
+            doc.content_path &&
+            doc.content_path.includes('.blob.core.windows.net') &&
+            !linkMap[doc.document_title]
+          ) {
+            linkMap[doc.document_title] = doc.content_path;
+          }
+        }
+        if (Object.keys(linkMap).length > 0) {
+          response.documentLinks = linkMap;
+          response._url_instructions = 'IMPORTANT: When creating clickable links, ALWAYS use the EXACT URLs from documentLinks. These URLs contain required authentication tokens. NEVER truncate, shorten, or reconstruct URLs. Copy them exactly as-is including all query parameters (?sv=...&sig=...).';
+
+          // When we have documentLinks and facets, the raw documents array is
+          // redundant and wastes tokens. Replace it with a count to save context.
+          if (response.facets) {
+            response.documents = `[${response.returnedCount} chunks processed to build documentLinks - use documentLinks for URLs]`;
           }
         }
       }
