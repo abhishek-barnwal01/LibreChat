@@ -13,7 +13,7 @@ interface KnowledgeBaseProps {
   onClose: () => void;
 }
 
-const BLOB_DOWNLOAD_BASE = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-soaps-v2';
+const BLOB_DOWNLOAD_BASE = 'https://gcplcmiadls001.blob.core.windows.net/gcpl-rag-embeddings';
 const DOWNLOAD_SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupyx&se=2026-03-19T14:08:21Z&st=2026-01-30T05:53:21Z&spr=https&sig=nYKjE2yfrFEcncreXt%2BA0dM6zFLbvNeignb3ZrnWcn0%3D';
 
 const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
