@@ -37,15 +37,11 @@ Example for "How many U&A reports?":
 Example for "List all U&A reports" (with clickable links):
 { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 → Extract all facet values = complete list of document names
-→ Use "uniqueDocumentLinks" array from response (NOT raw documents array) to get clean PDF links
-→ Each entry has { title, url } - use these directly: [title](url)
+→ Use documents array to get content_path for creating links: [filename](content_path)
 
 CRITICAL FOR LISTING QUERIES:
 1. Always include selectFields: "document_title,content_path" to get URLs for clickable links
 2. Always add "and text_document_id ne ''" to filter to exclude image chunks and get original PDF paths
-3. ALWAYS use the "uniqueDocumentLinks" array from the response for building clickable links - it has deduplicated, non-image URLs
-4. Do NOT use raw content_path from the documents array for listing - some chunks may have image paths
-5. Do NOT include source document citations or "[Source: ...]" references when listing documents - just show the document name with its link
 
 WITHOUT ",count:1000" you'll only get 10 documents maximum!
 
@@ -103,10 +99,9 @@ EXAMPLES:
 
 ✓ List all U&A reports with links (EFFICIENT - 1 call):
   { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
-  → Use "uniqueDocumentLinks" array from response - each entry has { title, url }
-  → Format as: [title](url) for clickable links
-  → DO NOT use raw documents array content_path (may contain image links)
-  → DO NOT include source citations or "[Source: ...]" when listing - just show document names with links
+  → Extract facet values for document names
+  → Use documents array to get content_path for links: [filename](content_path)
+  → DO NOT reconstruct URLs from document titles - ALWAYS use content_path from documents array
 
 ✓ List concept testing reports with links:
   { query: "*", filter: "file_category_ai eq 'Concept testing' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
@@ -210,44 +205,8 @@ EXAMPLES:
   }
 
   /**
-   * Checks if a URL points to an image file (extracted image chunk, not original document)
-   * @param {string} url - The URL to check
-   * @returns {boolean} True if the URL is an image path
-   */
-  _isImageUrl(url) {
-    if (!url) {
-      return false;
-    }
-    const lowerUrl = url.toLowerCase();
-    // Check for image file extensions
-    if (/\.(jpg|jpeg|png|gif|bmp|tiff|webp)(\?|$)/i.test(lowerUrl)) {
-      return true;
-    }
-    // Check for known image proxy paths
-    if (lowerUrl.includes('image-output') || lowerUrl.includes('normalized_images')) {
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Normalizes Azure Blob Storage URLs by fixing known hostname issues
-   * @param {string} url - The blob storage URL
-   * @returns {string} URL with corrected hostname
-   */
-  _normalizeUrl(url) {
-    if (!url) {
-      return url;
-    }
-    // Fix known hostname typo: gcpllcmiadls001 (double 'll') → gcplcmiadls001 (single 'l')
-    url = url.replace(/gcpllcmiadls001/g, 'gcplcmiadls001');
-    return url;
-  }
-
-  /**
    * Appends SAS token to Azure Blob Storage URLs
    * Strips any existing SAS tokens first to ensure fresh authentication
-   * Also normalizes the URL to fix known hostname issues
    * @param {string} url - The blob storage URL
    * @returns {string} URL with fresh SAS token appended
    */
@@ -255,9 +214,6 @@ EXAMPLES:
     if (!url || !this.blobSasToken) {
       return url;
     }
-
-    // Normalize URL first (fix hostname typos etc.)
-    url = this._normalizeUrl(url);
 
     // Check if it's a blob storage URL
     if (!url.includes('.blob.core.windows.net')) {
@@ -310,14 +266,9 @@ EXAMPLES:
         hasMoreResults: false,
       };
 
-      // Extract documents and process URLs
+      // Extract documents and append SAS tokens to blob URLs
       for await (const result of searchResults.results) {
         const doc = result.document;
-
-        // Normalize URL first (fix hostname typos etc.)
-        if (doc.content_path) {
-          doc.content_path = this._normalizeUrl(doc.content_path);
-        }
 
         // Append SAS token to content_path if it's a blob URL
         if (doc.content_path && this.appendSasToken) {
@@ -341,36 +292,6 @@ EXAMPLES:
       }
       response.uniqueDocumentsInBatch = uniqueDocIds.size || uniqueDocTitles.size;
       response.documentTitles = Array.from(uniqueDocTitles);
-
-      // Build unique document links map: for each document_title, find the best (non-image) content_path
-      // This helps listing queries get clean PDF links instead of image links
-      if (selectFields && selectFields.includes('content_path')) {
-        const docLinkMap = {};
-        for (const doc of response.documents) {
-          const title = doc.document_title;
-          if (!title || !doc.content_path) {
-            continue;
-          }
-          const isImage = this._isImageUrl(doc.content_path);
-          // Prefer non-image URLs; only use image URL if no better option exists
-          if (!docLinkMap[title] || (docLinkMap[title].isImage && !isImage)) {
-            docLinkMap[title] = { url: doc.content_path, isImage };
-          }
-        }
-        // Build clean array of { title, url } for agent to use directly
-        response.uniqueDocumentLinks = Object.entries(docLinkMap)
-          .filter(([, info]) => !info.isImage) // exclude documents that only have image links
-          .map(([title, info]) => ({ title, url: info.url }));
-
-        // Documents that only have image links (no PDF path found)
-        const imageOnlyDocs = Object.entries(docLinkMap)
-          .filter(([, info]) => info.isImage)
-          .map(([title]) => title);
-        if (imageOnlyDocs.length > 0) {
-          response.imageOnlyDocuments = imageOnlyDocs;
-          response.imageOnlyNote = 'These documents only have image chunk paths in the index. Their original PDF links are not available in the current results.';
-        }
-      }
 
       // Get total count if available
       if (searchResults.count !== undefined) {
