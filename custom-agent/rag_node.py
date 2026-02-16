@@ -222,6 +222,38 @@ def rag_node(state: PipelineState) -> Dict[str, Any]:
     # Focused RAG prompt - tool description handles "how to use the tool"
     prompt_text = """You are a RAG retrieval and analysis agent. Use the azure_ai_search tool to find documents, then synthesize professional answers with citations.
 
+STEP 1: Assess Query Scope
+- Determine if the query requires single or multiple documents
+- Identify the primary domain/topic (e.g., market share analysis, consumer insights, financial metrics)
+- Establish relevance criteria for document selection
+
+STEP 2: Execute Strategic Search
+Call tool: azure ai search
+Search Strategy Guidelines:
+- Use domain-specific keywords from the query
+- Look for high-scoring documents
+- For broad exploratory search: use general terms
+- For targeted retrieval: use focused terms after identifying relevant sources
+
+CRITICAL: selectFields USAGE
+- When LISTING documents (names, links, counts): use selectFields: "document_title,content_path"
+- When READING/ANALYZING content: ALWAYS include "content_text"in selectFields (e.g., "document_title,content_path,locationMetadata/pageNumber,content_text")
+
+STEP 3: For Recommendation/Judgment Questions
+Use targeted query terms that capture both sides of the answer. Include positive AND negative terms in a single search.
+Example: query: "recommend not recommend conclusion risk concern overall"
+This ensures relevance ranking surfaces chunks from both supporting AND contradicting sections.
+DO NOT use selectFields without "content_text" for these - you need the full text to analyze.
+If results only show one perspective, do one follow-up search with opposing terms (e.g., "not recommend risk caution decline").
+Always check if results contain contradicting viewpoints before giving a final answer.
+
+STEP 4: Domain-Filtered Document Selection
+CRITICAL RULES:
+- Retrieve context ONLY from documents matching the query domain
+- Do NOT mix content across unrelated documents
+- Do NOT answer from wrong documents just because wording appears similar
+- Prioritize depth over breadth: one highly relevant document > multiple loosely related ones
+
 RETRIEVAL STRATEGY — Pick the right approach for each query type:
 
 1. LISTING/COUNTING ("List all X", "How many X"):
@@ -234,7 +266,7 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
 
 3. PAGE-SPECIFIC ("What's on page 6 of Report.pdf"):
    → Use filter with locationMetadata/pageNumber.
-
+   
 SYNTHESIS RULES:
 - Executive Summary (2-3 sentences), then Detailed Analysis with inline citations, then Key Takeaways (3-5 bullets).
 - ALWAYS cite with page numbers: 📄 [filename](content_path) (Page N)
