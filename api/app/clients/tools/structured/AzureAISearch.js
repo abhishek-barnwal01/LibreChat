@@ -5,8 +5,8 @@ const { SearchClient, AzureKeyCredential } = require('@azure/search-documents');
 
 class AzureAISearch extends Tool {
   // Constants for default values
-  static DEFAULT_API_VERSION = '2023-11-01';
-  static DEFAULT_QUERY_TYPE = 'simple';
+  static DEFAULT_API_VERSION = '2025-11-01-preview';
+  static DEFAULT_QUERY_TYPE = 'full';
   static DEFAULT_TOP = 5;
 
   // Helper function for initializing properties
@@ -37,14 +37,11 @@ Example for "How many U&A reports?":
 Example for "List all U&A reports" (with clickable links):
 { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 → Extract all facet values = complete list of document names
-→ For each facet name, find matching document in documents array
-→ Use that document's content_path for creating clickable links: 📄 [filename](content_path)
-→ DO NOT reconstruct URLs from document titles - content_path has SAS tokens already appended
+→ Use documents array to get content_path for creating links: [filename](content_path)
 
 CRITICAL FOR LISTING QUERIES:
 1. Always include selectFields: "document_title,content_path" to get URLs for clickable links
 2. Always add "and text_document_id ne ''" to filter to exclude image chunks and get original PDF paths
-3. NEVER reconstruct URLs from document titles - ALWAYS use content_path from documents array (it has SAS tokens)
 
 WITHOUT ",count:1000" you'll only get 10 documents maximum!
 
@@ -71,15 +68,12 @@ PARAMETERS:
 - facets: Array of facetable fields ["document_title", "text_document_id", "file_category_ai", "content_path", etc.]
 - skip: Number of results to skip for pagination (default: 0)
 - selectFields: Comma-separated fields to return (e.g., "document_title,text_document_id")
+  IMPORTANT: When you need to READ/ANALYZE the actual page content, you MUST include "content_text" and "content_embedding" in selectFields (e.g., "content_text,content_embedding,document_title,content_path,locationMetadata/pageNumber").
+  If you omit "content_text", you will only get metadata (titles, paths, page numbers) but NOT the actual text content of the document.
+  - For LISTING documents: selectFields: "document_title,content_path" (no content_text needed)
 
 EXACT CATEGORY VALUES (file_category_ai) - Use these EXACT strings (case-sensitive):
-- "Brand equity" (lowercase 'e')
-- "Concept testing" (lowercase 't')
-- "Dipstick" (capital 'D')
-- "Household Penetration" (capital 'H' and 'P')
-- "Product testing" (lowercase 't')
-- "Sales data" (lowercase 'd')
-- "Usage/Attitude (U&A)" (capital 'U' and 'A')
+"Analysis", "Annual presentation", "Brand equity", "Brand Health track", "Concept testing", "Home panel", "Link testing", "Media Optimization", "Miscellaneous", "Needscope", "Post Launch Evaluation", "Product acceptance testing", "Product Performance Evaluation", "Retail audit", "Usage/Attitude (U&A)"
 
 CRITICAL FILTER RULES:
 1. Filters are CASE-SENSITIVE! Always use exact values above.
@@ -92,31 +86,11 @@ CRITICAL FILTER RULES:
    Wrong: "file_category_ai eq 'Brand equity'" → Returns image paths ❌
    Right: "file_category_ai eq 'Brand equity' and text_document_id ne ''" → Returns PDF paths ✅
 
-3. ALWAYS include page numbers in document citations!
-   Each search result contains locationMetadata.pageNumber - use it in your citations.
-   Format: 📄 [filename](content_path) (Page X)
-   Example: 📄 [Soaps UA 2024.pdf](https://...) (Page 15)
-   Multiple pages: 📄 [Report.pdf](https://...) (Pages 12, 15, 18)
-
 PAGE-SPECIFIC SEARCHES:
 - The index has pageNumber field under locationMetadata
 - To filter by page: use "locationMetadata/pageNumber eq [number]"
 - For specific document + page: combine filters with AND
 Example: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'"
-
-CRITICAL: ALWAYS INCLUDE PAGE NUMBERS IN CITATIONS
-- Each document in results contains locationMetadata.pageNumber
-- When citing documents, format as: 📄 [filename](content_path) (Page X)
-- Page numbers provide precise source attribution
-- Example: 📄 [Soaps Report 2024.pdf](https://...) (Page 15)
-- If a document has multiple relevant pages, list them: (Pages 12, 15, 18)
-
-RESPONSE FORMATTING - MINIMAL EMOJI USAGE:
-- ONLY use 📄 emoji for document citations in the Sources section at the end
-- DO NOT use emojis in the main response body (no ✓, ✗, ⚡, 🔹, 📈, 📉, 🎯, etc.)
-- Keep responses clean and professional with minimal decoration
-- Use markdown formatting (bold, headers, lists, tables) for structure
-- Focus on delivering clear, actionable information without excessive styling
 
 EXAMPLES:
 ✓ Count U&A reports (EFFICIENT - 1 call):
@@ -125,17 +99,9 @@ EXAMPLES:
 
 ✓ List all U&A reports with links (EFFICIENT - 1 call):
   { query: "*", filter: "file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
-
-  CRITICAL - How to extract URLs correctly:
-  → facets.document_title gives you unique document names (for counting/listing titles)
-  → documents array contains actual content_path URLs (with SAS tokens already appended)
-  → For each facet value, find matching document in documents array and use its content_path
+  → Extract facet values for document names
+  → Use documents array to get content_path for links: [filename](content_path)
   → DO NOT reconstruct URLs from document titles - ALWAYS use content_path from documents array
-  → Example flow:
-    1. facets.document_title[0].value = "Report.pdf" (title only, no URL)
-    2. Find in documents: documents.find(d => d.document_title === "Report.pdf")
-    3. Use: documents[X].content_path (this has the SAS token)
-    4. Output: 📄 [Report.pdf](documents[X].content_path)
 
 ✓ List concept testing reports with links:
   { query: "*", filter: "file_category_ai eq 'Concept testing' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
@@ -143,13 +109,17 @@ EXAMPLES:
 ✓ List brand equity reports with links:
   { query: "*", filter: "file_category_ai eq 'Brand equity' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 
-✓ Content search with page attribution:
-  { query: "product likability drivers" }
-  → Results include locationMetadata.pageNumber for each chunk
-  → In your answer, cite as: 📄 [Soaps UA 2024.pdf](https://...) (Page 23)
-  → ALWAYS extract and include the page number from locationMetadata!
+✓ Content search: { query: "Godrej growth 2022" } - NO facets (returns all fields including content_text)
+
+✓ Content search with selectFields: { query: "Godrej growth 2022", selectFields: "content_text,content_embedding,document_title,content_path,locationMetadata/pageNumber" }
+  → MUST include "content_text" to get actual text content
+
+✗ Wrong (missing content text): { query: "recommend", filter: "document_title eq 'Report.pdf'", selectFields: "document_title,content_path,content_embedding,locationMetadata/pageNumber" }
+  → Returns page numbers but NO text content - cannot analyze what the page says!
 
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
+
+✓ Documents in specific path: Documents in specific path: { query: "*", filter: "content_path eq '/reports/2023/'", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 
 ✗ Wrong (gets image paths): { query: "*", filter: "file_category_ai eq 'Brand equity'", selectFields: "document_title,content_path" }
 ✓ Right (gets PDF paths): { query: "*", filter: "file_category_ai eq 'Brand equity' and text_document_id ne ''", selectFields: "document_title,content_path" }
@@ -168,7 +138,7 @@ EXAMPLES:
       filter: z.string().optional().describe('OData filter expression (e.g., "file_category_ai eq \'U&A\'"'),
       facets: z.array(z.string()).optional().describe('Array of facetable field names to get counts/aggregations'),
       skip: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
-      selectFields: z.string().optional().describe('Comma-separated fields to return (e.g., "document_title,text_document_id") - CRITICAL for reducing tokens when listing documents'),
+      selectFields: z.string().optional().describe('Comma-separated fields to return. MUST include "content_text" and "content_embedding" when reading content (e.g., "content_text,,document_title,content_path,locationMetadata/pageNumber"). Omit "content_text" and "content_embedding" only for listing/counting queries.'),
     });
 
     // Initialize properties using helper function
