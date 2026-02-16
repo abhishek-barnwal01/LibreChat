@@ -270,10 +270,9 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
    → Use filter with locationMetadata/pageNumber.
 
 4. SUMMARIZATION ("Summarize document X"):
-   → First check size: top_k=1, select_fields="document_title" to get totalCount.
-   → If totalCount <= 200: read all with top_k=100 (paginate once if needed).
-   → If totalCount > 200: DO NOT read all chunks (will exceed token limit). Sample beginning (top_k=50), middle (skip=totalCount/2, top_k=50), end (skip=totalCount-50, top_k=50).
-   → Max 4 search calls total for any summarization.
+   → First call: top_k=100, select_fields="content_text,document_title,content_path,locationMetadata". Check totalCount.
+   → If totalCount <= 300: paginate to read all chunks (top_k=100, skip=100, skip=200).
+   → If totalCount > 300: sample beginning (already have first 100), middle (skip=totalCount/2, top_k=100), end (skip=totalCount-100, top_k=100). Max 4 calls total.
 
 URL RULES:
 - Use content_path URLs from search results as-is — never reconstruct or modify URLs.
