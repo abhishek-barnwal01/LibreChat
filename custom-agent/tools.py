@@ -76,40 +76,57 @@ def azure_ai_search(
     skip: Optional[int] = None,
     select_fields: Optional[str] = None,
 ) -> str:
-    """
-    Search Azure AI Search indexes using hybrid search (keyword + vector).
+    """Search documents in Azure AI Search. The index stores document CHUNKS, not whole documents.
 
-    Args:
-        query: Search query text. Use "*" for wildcard search when using filters/facets only (main_data only).
-        index_type: "main_data" or "semantic" (two separate indexes)
-        top_k: Number of results (1-100)
-        filter: (MAIN_DATA INDEX ONLY) OData filter expression (CASE-SENSITIVE!). Examples:
-            - "file_category_ai eq 'Usage/Attitude (U&A)'"
-            - "file_category_ai eq 'Brand equity'" (lowercase 'e')
-            - "file_category_ai eq 'Concept testing'" (lowercase 't')
-            - "locationMetadata/pageNumber eq 6"
-            - "document_title eq 'Report.pdf' and locationMetadata/pageNumber eq 6"
-            - Combine with 'and' / 'or'
-            CRITICAL: When listing documents, ALWAYS add "and text_document_id ne ''" to get PDF paths (not image paths)!
-            NOTE: Do NOT use filter with semantic index.
-        facets: (MAIN_DATA INDEX ONLY) List of facetable fields for aggregation/counting.
-            Add ',count:N' to get up to N unique values (default is only 10!).
-            Facetable fields: document_title, text_document_id, content_path, file_category_ai, country_ai
-            Examples: ["document_title,count:1000"], ["file_category_ai,count:100"]
-            NOTE: Do NOT use facets with semantic index - it does not have facetable fields.
-        skip: (MAIN_DATA INDEX ONLY) Number of results to skip for pagination (default: 0)
-        select_fields: (MAIN_DATA INDEX ONLY) Comma-separated list of fields to return.
-            Example: "document_title,content_path" for listing with clickable links
+PARAMETERS:
+- query: Search text, or "*" for wildcard (when using filters/facets only)
+- index_type: "main_data" (supports all params) or "semantic" (only query, index_type, top_k)
+- top_k: Number of results (1-100)
+- filter: OData filter (main_data only, CASE-SENSITIVE). ALWAYS add "and text_document_id ne ''" when listing documents to get PDF paths instead of image paths.
+- facets: Facetable fields for counting/listing (main_data only). Add ",count:1000" to get up to 1000 values.
+  Facetable fields: document_title, text_document_id, content_path, file_category_ai, country_ai
+- skip: Pagination offset (main_data only)
+- select_fields: Comma-separated fields to return (main_data only).
+  VALID fields ONLY: content_id, text_document_id, document_title, image_document_id, content_text, content_path, locationMetadata, file_category_ai, product_category_ai, brand_ai, file_time_period_ai, country_ai
+  MUST include "content_text" when you need to READ document content. Omit it only for listing/counting.
 
-    Returns:
-        JSON with docs (including page_number from locationMetadata), facets (if requested), and metadata.
-        ALWAYS use page_number in citations: 📄 [filename](content_path) (Page N)
+EXACT file_category_ai values (case-sensitive):
+"Analysis", "Annual presentation", "Brand equity", "Brand Health track", "Concept testing", "Home panel", "Link testing", "Media Optimization", "Miscellaneous", "Needscope", "Post Launch Evaluation", "Product acceptance testing", "Product Performance Evaluation", "Retail audit", "Usage/Attitude (U&A)"
 
-    CRITICAL RULES:
-    1. For semantic index: only use query, index_type, and top_k parameters.
-    2. Filters are CASE-SENSITIVE! Use exact category values.
-    3. When listing docs with links: add "text_document_id ne ''" to filter to get PDF paths.
-    4. ALWAYS include page_number in document citations.
+--- FEW-SHOT EXAMPLES ---
+
+Example 1 - Count U&A reports (1 call):
+  query="*", index_type="main_data", top_k=1, filter="file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets=["document_title,count:1000"]
+  → Number of facet items = number of unique documents
+
+Example 2 - List all U&A reports with clickable links (1 call):
+  query="*", index_type="main_data", top_k=100, filter="file_category_ai eq 'Usage/Attitude (U&A)' and text_document_id ne ''", facets=["document_title,count:1000"], select_fields="document_title,content_path"
+  → Facet values = all unique document names; docs array has content_path for links
+
+Example 3 - List brand equity reports with links (1 call):
+  query="*", index_type="main_data", top_k=100, filter="file_category_ai eq 'Brand equity' and text_document_id ne ''", facets=["document_title,count:1000"], select_fields="document_title,content_path"
+
+Example 4 - Content search (find insights):
+  query="Godrej growth 2022", index_type="main_data", top_k=20
+  → Returns full content with page_number for citations. NO facets needed.
+
+Example 5 - Content search with specific fields:
+  query="product likability", index_type="main_data", top_k=20, select_fields="content_text,document_title,content_path,locationMetadata"
+  → MUST include content_text to read actual text
+
+Example 6 - Specific page of a document:
+  query="*", index_type="main_data", top_k=10, filter="locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'"
+
+Example 7 - List all categories:
+  query="*", index_type="main_data", top_k=1, facets=["file_category_ai,count:100"]
+
+--- RULES ---
+- USE facets for listing/counting queries (1 call). DO NOT loop per document.
+- DO NOT use facets for content/keyword searches.
+- ALWAYS add "and text_document_id ne ''" to filter when listing documents.
+- WITHOUT ",count:1000" on facets you only get 10 values max.
+- DO NOT invent fields (e.g., metadata_storage_last_modified, author, owner do NOT exist).
+- For semantic index: ONLY use query, index_type, top_k (no filter/facets/skip/select_fields).
     """
 
     index_name = (
