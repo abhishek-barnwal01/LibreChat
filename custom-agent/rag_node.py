@@ -277,6 +277,12 @@ SYNTHESIS RULES:
 - For listing queries: return ALL documents from search, not a filtered subset.
 - Evidence-based claims only — do not fabricate information.
 
+LISTING QUERY RULES (when user asks to "list all X", "show all X documents"):
+- Use the "document_list" array from search results — it has clean, non-image URLs with SAS tokens.
+- Present each document as: [document_title](url) — do NOT add a separate "Sources" or "Citations" section.
+- The document list IS the answer — do not duplicate it as citations at the bottom.
+- Do NOT include image URLs (localhost paths with .jpg) — only include proper blob storage PDF links.
+
 OUTPUT — Return valid JSON:
 {{
   "retrieved_docs": [
