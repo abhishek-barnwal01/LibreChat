@@ -87,8 +87,9 @@ PARAMETERS:
   Facetable fields: document_title, text_document_id, content_path, file_category_ai, country_ai
 - skip: Pagination offset (main_data only)
 - select_fields: Comma-separated fields to return (main_data only).
-  VALID fields ONLY: content_id, text_document_id, document_title, image_document_id, content_text, content_path, locationMetadata, file_category_ai, product_category_ai, brand_ai, file_time_period_ai, country_ai
+  VALID fields: document_title, content_path, content_text, content_id, text_document_id, image_document_id, locationMetadata, file_category_ai, product_category_ai, brand_ai, file_time_period_ai, country_ai
   MUST include "content_text" when you need to READ document content. Omit it only for listing/counting.
+  NEVER include "content_embedding" (huge float array, useless for analysis) or "blob_id".
 
 EXACT file_category_ai values (case-sensitive):
 "Analysis", "Annual presentation", "Brand equity", "Brand Health track", "Concept testing", "Home panel", "Link testing", "Media Optimization", "Miscellaneous", "Needscope", "Post Launch Evaluation", "Product acceptance testing", "Product Performance Evaluation", "Retail audit", "Usage/Attitude (U&A)"
