@@ -119,13 +119,17 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
    - Use visual data relationships, including Mermaid diagrams when only when explicitly requested or when it significantly enhances understanding (avoid overuse)
  
 4. CITATIONS & SOURCES
-   - At the end, add a "### Sources" section
-   - List all referenced documents/reports as bullet points
+   - For CONTENT/ANALYSIS answers: At the end, add a "### Sources" section with all referenced documents
    - Format: - Always use 📄 [filename](content_path)
    - Always include page number when available: 📄 [filename](content_path) (Page N)
    - Example: - *Soaps Annual Presentation 2022 - Nielsen IQ RMS* (Page 5)
    - Extract cleaned filename by removing UUID prefix
    - Format as markdown links
+   - For LISTING answers (user asked "list all X", "show all X documents"):
+     Do NOT add a separate "### Sources" section — the document list with links IS the answer.
+     Adding Sources would duplicate the same documents at the bottom.
+   - URL CLEANUP: If any URL contains hostname "gcpllcmiadls001" (double "ll"), fix it to "gcplcmiadls001" (single "l").
+   - SKIP IMAGE URLs: Never include URLs ending in .jpg/.jpeg/.png/.gif or containing "image-output" or "normalized_images" — these are extracted image chunks, not original documents.
 
 5. CLARITY & READABILITY
    - Use short paragraphs (2-4 sentences max)
