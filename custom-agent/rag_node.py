@@ -7,6 +7,7 @@ from langchain_core.messages import ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tools import azure_ai_search
 from models import RAGOutput, PipelineState
+import asyncio
 import config
 import json
 from memory_store import store
@@ -74,8 +75,76 @@ def create_llm():
     )
 
 
-def _invoke_single_tool(tool_call, tools_map: dict) -> ToolMessage:
-    """Execute a single tool call and return a ToolMessage."""
+async def _invoke_single_tool_async(tool_call, tools_map: dict) -> ToolMessage:
+    """Execute a single tool call asynchronously and return a ToolMessage."""
+    if hasattr(tool_call, "name"):
+        tool_name = tool_call.name
+        tool_args = tool_call.args
+        tool_id = tool_call.id
+    else:
+        tool_name = tool_call["name"]
+        tool_args = tool_call["args"]
+        tool_id = tool_call["id"]
+
+    if isinstance(tool_args, str):
+        try:
+            tool_args = json.loads(tool_args)
+        except json.JSONDecodeError:
+            return ToolMessage(
+                content=json.dumps({"error": f"Invalid JSON in tool args: {tool_args}"}),
+                tool_call_id=tool_id,
+            )
+
+    if tool_name in tools_map:
+        try:
+            # Run sync tool.invoke in a thread to avoid blocking the event loop
+            result = await asyncio.to_thread(tools_map[tool_name].invoke, tool_args)
+            return ToolMessage(content=result, tool_call_id=tool_id)
+        except Exception as e:
+            return ToolMessage(
+                content=json.dumps({"error": str(e)}), tool_call_id=tool_id
+            )
+    else:
+        return ToolMessage(
+            content=json.dumps({"error": f"Unknown tool: {tool_name}"}),
+            tool_call_id=tool_id,
+        )
+
+
+def execute_tool_calls(tool_calls: list, tools_map: dict) -> list:
+    """Execute tool calls in parallel using asyncio.gather."""
+    if len(tool_calls) <= 1:
+        # Single call — run synchronously (no async overhead)
+        return [_invoke_single_tool_sync(tc, tools_map) for tc in tool_calls]
+
+    print(f"  ⚡ Executing {len(tool_calls)} tool calls in parallel (asyncio.gather)")
+
+    async def _gather_all():
+        return await asyncio.gather(
+            *[_invoke_single_tool_async(tc, tools_map) for tc in tool_calls]
+        )
+
+    # If an event loop is already running, use it; otherwise create one
+    if _is_event_loop_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            results = pool.submit(asyncio.run, _gather_all()).result()
+        return list(results)
+    else:
+        return list(asyncio.run(_gather_all()))
+
+
+def _is_event_loop_running() -> bool:
+    """Check if an asyncio event loop is already running."""
+    try:
+        loop = asyncio.get_running_loop()
+        return loop.is_running()
+    except RuntimeError:
+        return False
+
+
+def _invoke_single_tool_sync(tool_call, tools_map: dict) -> ToolMessage:
+    """Synchronous fallback for single tool call execution."""
     if hasattr(tool_call, "name"):
         tool_name = tool_call.name
         tool_args = tool_call.args
@@ -107,27 +176,6 @@ def _invoke_single_tool(tool_call, tools_map: dict) -> ToolMessage:
             content=json.dumps({"error": f"Unknown tool: {tool_name}"}),
             tool_call_id=tool_id,
         )
-
-
-def execute_tool_calls(tool_calls: list, tools_map: dict) -> list:
-    """Execute tool calls in parallel using threads when multiple calls exist."""
-    if len(tool_calls) <= 1:
-        return [_invoke_single_tool(tc, tools_map) for tc in tool_calls]
-
-    # Multiple tool calls — run in parallel
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    print(f"  ⚡ Executing {len(tool_calls)} tool calls in parallel")
-    with ThreadPoolExecutor(max_workers=min(len(tool_calls), 5)) as executor:
-        futures = {
-            executor.submit(_invoke_single_tool, tc, tools_map): i
-            for i, tc in enumerate(tool_calls)
-        }
-        # Collect results preserving original order
-        results = [None] * len(tool_calls)
-        for future in as_completed(futures):
-            idx = futures[future]
-            results[idx] = future.result()
-    return results
 
 def rag_node(state: PipelineState) -> Dict[str, Any]:
     """
@@ -323,7 +371,7 @@ CRITICAL:
 
             tool_messages = execute_tool_calls(response.tool_calls, tools_map)
 
-            # Log search results + rerank
+            # Log search results
             parsed_results = {}
             for tool_msg in tool_messages:
                 try:
