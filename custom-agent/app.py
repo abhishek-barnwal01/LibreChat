@@ -278,129 +278,102 @@ def append_sas_to_blob_urls(markdown_text: str) -> str:
     return blob_pattern.sub(add_sas, markdown_text)
 
 # ---------- Streaming generator for LibreChat ----------
+def _make_chunk(chunk_id, created_time, model, content=None, role=None, finish_reason=None):
+    """Helper to build an OpenAI SSE chunk."""
+    delta = {}
+    if role:
+        delta["role"] = role
+    if content is not None:
+        delta["content"] = content
+    return {
+        "id": chunk_id,
+        "object": "chat.completion.chunk",
+        "created": created_time,
+        "model": model,
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+    }
+
+
 def generate_stream(user_query, langchain_messages, user_id, session_id, model):
     """
-    Streams the response with proper OpenAI SSE format for LibreChat markdown rendering.
-    
-    KEY FIXES:
-    1. Send role: "assistant" in first chunk (critical for markdown rendering)
-    2. Stream entire response at once (preserves markdown formatting)
+    Streams the response with tool call markers for LibreChat's frontend.
+
+    Flow:
+    1. Send role: "assistant" (required for markdown rendering)
+    2. Extract tool calls from graph result messages → send as <!-- TOOL_CALL --> / <!-- TOOL_RESULT --> markers
+    3. Stream the final formatted text
+    4. LibreChat's OpenAIClient.js intercepts markers and emits on_run_step SSE events
     """
     try:
         result = graph.invoke(
             {
                 "user_query": user_query,
                 "messages": langchain_messages,
-                "user_id": user_id
+                "user_id": user_id,
             },
-            config={"configurable": {"thread_id": session_id}}
+            config={"configurable": {"thread_id": session_id}},
         )
-
-        # Debug: print what we got back
-        print(f"\n🔍 DEBUG generate_stream result keys: {list(result.keys())}")
-        print(f"📌 clarification_message: {result.get('clarification_message')}")
-        print(f"📌 semantic_chitchat: {result.get('semantic_chitchat')}")
-
-        # Handle clarification if needed
-        clarification_msg = result.get("clarification_message")
-        if clarification_msg:
-            print(f"✅ Clarification detected, returning: {clarification_msg[:100]}...")
-            final_response = clarification_msg
-        else:
-            print(f"📄 No clarification, using formatted response")
-            final_response = result.get("formatted", {}).get("formatted_response", "")
-            final_response = append_sas_to_blob_urls(final_response)
-            if not final_response:
-                print(f"⚠️ No formatted response, result keys: {result.keys()}")
 
         chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
         created_time = int(time.time())
 
-        # ==================== FIX 1: Send role first ====================
-        # CRITICAL: LibreChat needs this to know it's an assistant message
-        # Without this, it treats the message as plain text instead of markdown
-        role_chunk = {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": created_time,
-            "model": model,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {"role": "assistant"},
-                    "finish_reason": None
-                }
-            ]
-        }
-        yield f"data: {json.dumps(role_chunk)}\n\n"
+        # 1. Send role first (critical for markdown rendering)
+        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, role='assistant'))}\n\n"
 
-        # ==================== FIX 2: Stream entire response at once ====================
-        # Streaming word-by-word breaks markdown syntax:
-        # "**Bold text**" split into ["**Bold", "text**"] renders incorrectly
-        # Solution: Send the complete markdown in one chunk
-        content_chunk = {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": created_time,
-            "model": model,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {"content": final_response},
-                    "finish_reason": None
-                }
-            ]
-        }
-        yield f"data: {json.dumps(content_chunk)}\n\n"
+        # 2. Extract tool calls from messages and send as markers
+        messages = result.get("messages", [])
+        tool_call_map = {}  # track id → {name, args} for pairing with results
+        step_index = 0
 
-        # Final chunk to indicate completion
-        final_chunk = {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": created_time,
-            "model": model,
-            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
-        }
-        yield f"data: {json.dumps(final_chunk)}\n\n"
+        for msg in messages:
+            # AI message with tool_calls
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                for tc in msg.tool_calls:
+                    tc_id = tc.get("id", f"call_{uuid.uuid4().hex[:8]}")
+                    tc_name = tc.get("name", "unknown")
+                    tc_args = tc.get("args", {})
+                    tool_call_map[tc_id] = {"name": tc_name, "args": tc_args, "step_index": step_index}
+
+                    marker = f'<!-- TOOL_CALL:{json.dumps({"id": tc_id, "name": tc_name, "args": tc_args, "step_index": step_index})} -->'
+                    yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=marker))}\n\n"
+                    step_index += 1
+
+            # ToolMessage with result
+            elif hasattr(msg, "tool_call_id") and msg.tool_call_id:
+                tc_id = msg.tool_call_id
+                tc_info = tool_call_map.get(tc_id, {})
+                output = (msg.content or "")[:2000]
+                if len(msg.content or "") > 2000:
+                    output += "...(truncated)"
+
+                marker = f'<!-- TOOL_RESULT:{json.dumps({"id": tc_id, "name": tc_info.get("name", ""), "args": json.dumps(tc_info.get("args", {})), "output": output, "step_index": tc_info.get("step_index", 0)})} -->'
+                yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=marker))}\n\n"
+
+        # 3. Stream final text response
+        clarification_msg = result.get("clarification_message")
+        if clarification_msg:
+            final_response = clarification_msg
+        else:
+            final_response = result.get("formatted", {}).get("formatted_response", "")
+            final_response = append_sas_to_blob_urls(final_response)
+
+        # Send text in one chunk (preserves markdown formatting)
+        if final_response:
+            yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=final_response))}\n\n"
+
+        # 4. Done
+        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, finish_reason='stop'))}\n\n"
         yield "data: [DONE]\n\n"
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        
+
         chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
-        
-        # Send role first even in error case
-        role_chunk = {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": int(time.time()),
-            "model": model,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {"role": "assistant"},
-                    "finish_reason": None
-                }
-            ]
-        }
-        yield f"data: {json.dumps(role_chunk)}\n\n"
-        
-        # Then send error message
-        error_chunk = {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": int(time.time()),
-            "model": model,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {"content": f"\n\n❌ Error: {str(e)}"},
-                    "finish_reason": "stop"
-                }
-            ]
-        }
-        yield f"data: {json.dumps(error_chunk)}\n\n"
+        created_time = int(time.time())
+
+        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, role='assistant'))}\n\n"
+        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=f'\\n\\n❌ Error: {str(e)}', finish_reason='stop'))}\n\n"
         yield "data: [DONE]\n\n"
 
 # ---------- Search Tool Endpoint (for LibreChat Agent OpenAPI Action) ----------

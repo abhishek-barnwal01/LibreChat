@@ -1001,6 +1001,9 @@ class OpenAIClient extends BaseClient {
         delete modelOptions.reasoning_effort;
       }
 
+      // Flag: set to true when custom endpoint sends tool call markers
+      let _hasToolMarkers = false;
+
       const handlers = createStreamEventHandlers(this.options.res);
       this.streamHandler = new SplitStreamHandler({
         reasoningKey,
@@ -1038,8 +1041,17 @@ class OpenAIClient extends BaseClient {
               finalChatCompletion.choices[0].message.role = 'assistant';
             }
 
-            if (typeof finalMessage.content !== 'string' || finalMessage.content.trim() === '') {
-              finalChatCompletion.choices[0].message.content = this.streamHandler.tokens.join('');
+            // When tool markers were present, the SDK accumulates them in content.
+            // Use clean tokens from SplitStreamHandler instead (markers were skipped).
+            if (_hasToolMarkers) {
+              finalChatCompletion.choices[0].message.content =
+                this.streamHandler.tokens.join('');
+            } else if (
+              typeof finalMessage.content !== 'string' ||
+              finalMessage.content.trim() === ''
+            ) {
+              finalChatCompletion.choices[0].message.content =
+                this.streamHandler.tokens.join('');
             }
           })
           .on('finalMessage', (message) => {
@@ -1076,6 +1088,74 @@ class OpenAIClient extends BaseClient {
               }
             });
           }
+
+          // --- Intercept tool call markers from custom endpoints ---
+          const _content = chunk.choices?.[0]?.delta?.content || '';
+          const _toolCallMatch = _content.match(/<!-- TOOL_CALL:(.*?) -->/);
+          const _toolResultMatch = _content.match(/<!-- TOOL_RESULT:(.*?) -->/);
+
+          if (_toolCallMatch && this.options.res) {
+            _hasToolMarkers = true;
+            try {
+              const td = JSON.parse(_toolCallMatch[1]);
+              this.options.res.write(
+                `event: message\ndata: ${JSON.stringify({
+                  event: 'on_run_step',
+                  data: {
+                    id: `step_${td.id}`,
+                    runId: this.responseMessageId,
+                    index: td.step_index ?? 0,
+                    stepDetails: {
+                      type: 'tool_calls',
+                      tool_calls: [
+                        {
+                          id: td.id,
+                          name: td.name,
+                          args:
+                            typeof td.args === 'string' ? td.args : JSON.stringify(td.args),
+                          type: 'function',
+                        },
+                      ],
+                    },
+                  },
+                })}\n\n`,
+              );
+            } catch (_e) {
+              /* ignore parse errors */
+            }
+            await sleep(streamRate);
+            continue;
+          }
+
+          if (_toolResultMatch && this.options.res) {
+            _hasToolMarkers = true;
+            try {
+              const rd = JSON.parse(_toolResultMatch[1]);
+              this.options.res.write(
+                `event: message\ndata: ${JSON.stringify({
+                  event: 'on_run_step_completed',
+                  data: {
+                    result: {
+                      id: `step_${rd.id}`,
+                      tool_call: {
+                        id: rd.id,
+                        name: rd.name || '',
+                        args: rd.args || '',
+                        output: rd.output || '',
+                        progress: 1,
+                      },
+                    },
+                  },
+                })}\n\n`,
+              );
+            } catch (_e) {
+              /* ignore parse errors */
+            }
+            await sleep(streamRate);
+            continue;
+          }
+          // --- End tool call marker interception ---
+
           this.streamHandler.handle(chunk);
           if (abortController.signal.aborted) {
             stream.controller.abort();
@@ -1084,6 +1164,7 @@ class OpenAIClient extends BaseClient {
 
           await sleep(streamRate);
         }
+
 
         streamResolve();
 
