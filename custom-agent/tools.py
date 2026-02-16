@@ -121,12 +121,11 @@ Example 6 - Specific page of a document:
 Example 7 - List all categories:
   query="*", index_type="main_data", top_k=1, facets=["file_category_ai,count:100"]
 
-Example 8 - Summarize a document (read ALL pages with pagination):
-  Call 1: query="*", index_type="main_data", top_k=100, filter="document_title eq 'Report.pdf'", select_fields="content_text,document_title,content_path,locationMetadata"
-  → If hasMoreResults=true in response, make another call:
-  Call 2: query="*", index_type="main_data", top_k=100, filter="document_title eq 'Report.pdf'", select_fields="content_text,document_title,content_path,locationMetadata", skip=100
-  → Repeat with skip=200, 300... until hasMoreResults=false
-  → THEN summarize from ALL collected chunks
+Example 8 - Summarize a document:
+  First check size: query="*", index_type="main_data", top_k=1, filter="document_title eq 'Report.pdf'", select_fields="document_title"
+  → Check totalCount in response.
+  → If totalCount <= 200: read all with top_k=100 (paginate once if needed).
+  → If totalCount > 200: sample beginning (top_k=50), middle (skip=totalCount/2, top_k=50), end (skip=totalCount-50, top_k=50). Max 4 calls total.
 
 --- RULES ---
 - USE facets for listing/counting queries (1 call). DO NOT loop per document.

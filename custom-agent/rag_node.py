@@ -269,28 +269,11 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
 3. PAGE-SPECIFIC ("What's on page 6 of Report.pdf"):
    → Use filter with locationMetadata/pageNumber.
 
-4. SUMMARIZATION ("Summarize document X", "Give me a summary of X"):
-   → Step 1: SCOPE CHECK — First call with filter="document_title eq 'X.pdf'", top_k=1, select_fields="document_title" to check totalCount.
-   → Step 2: Choose strategy based on totalCount:
-
-   IF totalCount <= 200 chunks (small-medium document):
-     → Retrieve all chunks: top_k=100, select_fields="content_text,document_title,content_path,locationMetadata"
-     → If hasMoreResults=true, paginate with skip=nextSkip (max 1 more call, so up to 200 chunks).
-     → Synthesize from all collected content.
-
-   IF totalCount > 200 chunks (large document):
-     → Do NOT try to read all chunks — you will exceed the token limit and crash.
-     → Instead, use a TARGETED SAMPLING strategy with exactly 3 search calls:
-       Call A (Beginning): filter="document_title eq 'X.pdf'", top_k=50, select_fields="content_text,document_title,content_path,locationMetadata"
-         → Gets introduction, table of contents, executive summary, methodology.
-       Call B (Middle): same filter, top_k=50, skip=(totalCount / 2) rounded down, same select_fields
-         → Gets core findings from the middle of the document.
-       Call C (End): same filter, top_k=50, skip=(totalCount - 50), same select_fields
-         → Gets conclusions, recommendations, appendix summaries.
-     → Make all 3 calls, then synthesize a comprehensive summary from the sampled sections.
-     → Clearly state in your answer: "This summary is based on key sections of a large document (X chunks). For detailed information on specific sections, please ask about particular topics."
-
-   → NEVER make more than 4 search calls total for a single summarization request.
+4. SUMMARIZATION ("Summarize document X"):
+   → First check size: top_k=1, select_fields="document_title" to get totalCount.
+   → If totalCount <= 200: read all with top_k=100 (paginate once if needed).
+   → If totalCount > 200: DO NOT read all chunks (will exceed token limit). Sample beginning (top_k=50), middle (skip=totalCount/2, top_k=50), end (skip=totalCount-50, top_k=50).
+   → Max 4 search calls total for any summarization.
 
 URL RULES:
 - Use content_path URLs from search results as-is — never reconstruct or modify URLs.
