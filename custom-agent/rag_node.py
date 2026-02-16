@@ -4,7 +4,8 @@
 from typing import Dict, Any, List
 from langchain_openai import AzureChatOpenAI
 from langchain_core.messages import ToolMessage
-
+from langchain_community.document_compressors import FlashrankRerank
+from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tools import azure_ai_search
 from models import RAGOutput, PipelineState
@@ -18,7 +19,9 @@ def safe_utf8(text: str) -> str:
     if not text:
         return ""
     # Replace invalid UTF-8 characters with '?'
-    return text.encode("utf-8", errors="replace").decode("utf-8")
+    # Also remove null bytes which PostgreSQL cannot handle in JSON
+    cleaned = text.encode("utf-8", errors="replace").decode("utf-8")
+    return cleaned.replace("\x00", "")
 
 
 def filter_sensitive_content(text: str) -> str:
@@ -46,6 +49,65 @@ def filter_sensitive_content(text: str) -> str:
             pass
     
     return filtered
+
+
+def rerank_documents(documents: List[Dict[str, Any]], query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+    """
+    Rerank documents using FlashRank for better relevance ordering.
+    Skip reranking for small result sets where Azure Search scores are already good.
+    
+    Args:
+        documents: List of document chunks from search results
+        query: The user query to rerank against
+        top_k: Number of top reranked documents to return
+    
+    Returns:
+        List of reranked documents sorted by relevance score
+    """
+    try:
+        # Skip reranking for small result sets
+        if not documents or not query or len(documents) < 5:
+            return documents[:top_k]
+        
+        # Initialize FlashRank reranker (uses default model)
+        reranker = FlashrankRerank()
+        
+        # Convert search results to LangChain Document format
+        docs_to_rerank = [
+            Document(
+                page_content=doc.get("content_text", doc.get("description", "")),
+                metadata={
+                    "filename": doc.get("filename", ""),
+                    "content_path": doc.get("content_path", ""),
+                    "pages": doc.get("pages", ""),
+                    "score": doc.get("score", 0),
+                }
+            )
+            for doc in documents if doc.get("content_text") or doc.get("description")
+        ]
+        
+        if not docs_to_rerank:
+            return documents
+        
+        # Rerank documents using FlashRank
+        reranked_docs = reranker.compress_documents(docs_to_rerank, query)
+        
+        # Convert back to original format with FlashRank scores
+        reranked_results = [
+            {
+                **doc.metadata,
+                "content_text": doc.page_content,
+                "flashrank_score": getattr(doc, 'score', 0),
+            }
+            for doc in reranked_docs[:top_k]
+        ]
+        
+        return reranked_results
+    
+    except Exception as e:
+        print(f"⚠️ FlashRank reranking failed: {str(e)}")
+        # Fallback: return original documents if reranking fails
+        return documents[:top_k]
 
 
 # ------------------------------------------------------
@@ -118,7 +180,6 @@ def execute_tool_calls(tool_calls: list, tools_map: dict) -> list:
             )
     return tool_messages
 
-
 def rag_node(state: PipelineState) -> Dict[str, Any]:
     """
     Full RAG node with multi-phase document retrieval, page-level extraction, synthesis,
@@ -136,10 +197,10 @@ def rag_node(state: PipelineState) -> Dict[str, Any]:
     messages = state.messages
 
     user_memories = store.search(
-    ("rag_memory", state.user_id),
-    query=None,   # no semantic filtering, just fetch all
-    limit=20      # adjust as needed
-)
+        ("rag_memory", state.user_id),
+        query=None,   # no semantic filtering, just fetch recent
+        limit=5
+    )
 
 # 🔹 Step 2: Format them for prompt
     if user_memories:
@@ -481,30 +542,10 @@ QUALITY STANDARDS
 
     agent_messages = list(initial_messages)
     all_new_messages = []
-    max_iterations = 8  # Total iterations allowed
-    synthesis_threshold = 6  # Start pushing for synthesis at iteration 6
+    max_iterations = 10
     response = None
-    iteration_count = 0
 
     for iteration in range(max_iterations):
-        iteration_count = iteration + 1
-        print(f"\n🔄 RAG Iteration {iteration_count}/{max_iterations}")
-
-        # If approaching limit, inject "stop searching, synthesize" message and remove tools
-        if iteration_count == synthesis_threshold:
-            print(f"⚠️  Approaching iteration limit - forcing synthesis mode (no more tools)")
-            synthesis_reminder = (
-                "human",
-                "You have retrieved sufficient document content. "
-                "DO NOT make any more tool calls. "
-                "Now synthesize your final answer in RAGOutput JSON format with the data you've already gathered. "
-                "Include all retrieved documents with their content_path URLs."
-            )
-            agent_messages.append(synthesis_reminder)
-            # Switch to LLM without tools to force synthesis
-            llm_with_tools = create_llm()
-            print(f"✓ Switched to LLM without tools for final synthesis")
-
         try:
             # 🔹 Filter sensitive content from messages before sending
             filtered_messages = []
@@ -512,7 +553,7 @@ QUALITY STANDARDS
                 if hasattr(msg, 'content') and isinstance(msg.content, str):
                     msg.content = filter_sensitive_content(msg.content)
                 filtered_messages.append(msg)
-
+            
             response = llm_with_tools.invoke(filtered_messages)
 
         except ValueError as e:
@@ -551,12 +592,29 @@ QUALITY STANDARDS
         all_new_messages.append(response)
 
         if response.tool_calls:
-            # After synthesis_threshold, ignore any tool calls (shouldn't happen with tools removed)
-            if iteration_count >= synthesis_threshold:
-                print(f"⚠️  Ignoring tool calls after synthesis threshold")
-                break
-
             tool_messages = execute_tool_calls(response.tool_calls, tools_map)
+
+            # � OPTIMIZATION: Parse JSON once, reuse parsed result
+            parsed_results = {}  # Cache parsed JSON to avoid re-parsing
+            for tool_msg in tool_messages:
+                try:
+                    # Only parse once
+                    if tool_msg.content not in parsed_results:
+                        tool_result = json.loads(tool_msg.content)
+                        parsed_results[tool_msg.content] = tool_result
+                    else:
+                        tool_result = parsed_results[tool_msg.content]
+                    
+                    if isinstance(tool_result, dict) and "documents" in tool_result:
+                        original_docs = tool_result.get("documents", [])
+                        if original_docs:
+                            # Rerank using the user query
+                            reranked = rerank_documents(original_docs, user_query, top_k=len(original_docs))
+                            tool_result["documents"] = reranked
+                            tool_msg.content = json.dumps(tool_result)
+                            print(f"✅ Reranked {len(reranked)} documents using FlashRank")
+                except (json.JSONDecodeError, Exception) as e:
+                    print(f"⚠️ Document reranking skipped: {str(e)}")
 
             # 🔹 Sanitize all tool messages
             for tm in tool_messages:
@@ -566,67 +624,25 @@ QUALITY STANDARDS
             agent_messages.extend(tool_messages)
             all_new_messages.extend(tool_messages)
         else:
-            print(f"✓ Agent completed search (no more tool calls)")
             break
 
     raw_output = response.content if response else ""
-
-    # Fallback: if still no output after loop (rare edge case)
-    if not raw_output:
-        print(f"\n⚠️ No output after {iteration_count} iterations - making final synthesis call")
-        llm_no_tools = create_llm()
-        synthesis_prompt = f"""Based on all the document chunks retrieved in the conversation above, synthesize your answer.
-
-User Query: {user_query}
-Enriched Query: {enriched_query}
-
-Generate RAGOutput JSON with retrieved_docs (including content_path URLs) and final_answer.
-Total searches: {iteration_count}"""
-
-        agent_messages.append(("human", synthesis_prompt))
-        response = llm_no_tools.invoke(agent_messages)
-        raw_output = response.content if response else ""
-        all_new_messages.append(response)
-        print(f"✓ Fallback synthesis generated ({len(raw_output)} chars)")
 
     # DEBUG: Print raw output before parsing
     print("\n" + "-"*70)
     print("🐛 DEBUG: RAG NODE - Raw LLM Output")
     print("-"*70)
-    print(f"Iterations used: {iteration_count}/{max_iterations}")
     print(f"Raw Output Length: {len(raw_output)} chars")
     print(f"Raw Output (first 500 chars):\n{raw_output[:500]}")
     print(f"Raw Output (last 500 chars):\n{raw_output[-500:]}")
     print(f"Total docs count in raw output: {raw_output.count('filename')}")
     print("-"*70)
 
-    # Parse raw output into structured RAGOutput
-    if raw_output:
-        llm_structured = create_llm().with_structured_output(
-            RAGOutput, method="function_calling"
-        )
-        try:
-            output: RAGOutput = llm_structured.invoke(raw_output)
-        except Exception as parse_error:
-            print(f"\n⚠️ Error parsing RAGOutput: {parse_error}")
-            print(f"   Creating fallback RAGOutput")
-            output = RAGOutput(
-                retrieved_docs=[],
-                final_answer=f"Error processing search results. Please try rephrasing your question.\n\nDebug: {str(parse_error)[:200]}",
-                search_strategy=f"Completed {iteration_count} iterations with multiple tool calls",
-                reasoning="Failed to parse final output into structured format",
-                total_searches=iteration_count
-            )
-    else:
-        print(f"\n⚠️ No raw output generated - creating error response")
-        output = RAGOutput(
-            retrieved_docs=[],
-            final_answer="Unable to generate response. The agent completed multiple searches but did not produce a final answer.",
-            search_strategy=f"Completed {iteration_count} iterations",
-            reasoning="Agent loop completed but generated no output",
-            total_searches=iteration_count
-        )
-
+    llm_structured = create_llm().with_structured_output(
+        RAGOutput, method="function_calling"
+    )
+    output: RAGOutput = llm_structured.invoke(raw_output)
+    
     # DEBUG: Print structured output before returning
     print("\n" + "-"*70)
     print("🐛 DEBUG: RAG NODE - Structured Output")
