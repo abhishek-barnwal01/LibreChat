@@ -322,27 +322,55 @@ CRITICAL:
         all_new_messages.append(response)
 
         if response.tool_calls:
+            # Log tool call args
+            for tc in response.tool_calls:
+                tc_name = tc.name if hasattr(tc, "name") else tc.get("name", "?")
+                tc_args = tc.args if hasattr(tc, "args") else tc.get("args", {})
+                print(f"\n🔧 TOOL CALL (iteration {iteration}): {tc_name}")
+                print(f"   Args: {json.dumps(tc_args, indent=2, default=str)}")
+
             tool_messages = execute_tool_calls(response.tool_calls, tools_map)
 
-            # � OPTIMIZATION: Parse JSON once, reuse parsed result
-            parsed_results = {}  # Cache parsed JSON to avoid re-parsing
+            # Log search results + rerank
+            parsed_results = {}
             for tool_msg in tool_messages:
                 try:
-                    # Only parse once
                     if tool_msg.content not in parsed_results:
                         tool_result = json.loads(tool_msg.content)
                         parsed_results[tool_msg.content] = tool_result
                     else:
                         tool_result = parsed_results[tool_msg.content]
-                    
-                    if isinstance(tool_result, dict) and "documents" in tool_result:
-                        original_docs = tool_result.get("documents", [])
-                        if original_docs:
-                            # Rerank using the user query
-                            reranked = rerank_documents(original_docs, user_query, top_k=len(original_docs))
-                            tool_result["documents"] = reranked
-                            tool_msg.content = json.dumps(tool_result)
-                            print(f"✅ Reranked {len(reranked)} documents using FlashRank")
+
+                    if isinstance(tool_result, dict):
+                        # Log search result summary
+                        total = tool_result.get("totalCount", tool_result.get("total_count", "?"))
+                        docs = tool_result.get("documents", tool_result.get("docs", []))
+                        facets = tool_result.get("facets", {})
+                        print(f"\n📊 SEARCH RESULTS (iteration {iteration}):")
+                        print(f"   Total chunks: {total}")
+                        print(f"   Returned docs: {len(docs) if isinstance(docs, list) else '?'}")
+                        if facets:
+                            for facet_name, facet_vals in facets.items():
+                                if isinstance(facet_vals, list):
+                                    print(f"   Facet '{facet_name}': {len(facet_vals)} unique values")
+                        # Log first 5 doc titles + pages
+                        if isinstance(docs, list):
+                            for i, d in enumerate(docs[:5]):
+                                title = d.get("document_title", d.get("filename", "?"))
+                                page = d.get("page_number", d.get("pageNumber", "?"))
+                                score = d.get("score", d.get("@search.score", "?"))
+                                path = d.get("content_path", "")[:80]
+                                print(f"   [{i+1}] {title} | Page: {page} | Score: {score} | Path: {path}...")
+                            if len(docs) > 5:
+                                print(f"   ... and {len(docs) - 5} more documents")
+
+                        if "documents" in tool_result:
+                            original_docs = tool_result["documents"]
+                            if original_docs:
+                                reranked = rerank_documents(original_docs, user_query, top_k=len(original_docs))
+                                tool_result["documents"] = reranked
+                                tool_msg.content = json.dumps(tool_result)
+                                print(f"   ✅ Reranked {len(reranked)} documents using FlashRank")
                 except (json.JSONDecodeError, Exception) as e:
                     print(f"⚠️ Document reranking skipped: {str(e)}")
 
