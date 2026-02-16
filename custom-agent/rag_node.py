@@ -4,8 +4,6 @@
 from typing import Dict, Any, List
 from langchain_openai import AzureChatOpenAI
 from langchain_core.messages import ToolMessage
-from langchain_community.document_compressors import FlashrankRerank
-from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tools import azure_ai_search
 from models import RAGOutput, PipelineState
@@ -51,65 +49,6 @@ def filter_sensitive_content(text: str) -> str:
     return filtered
 
 
-def rerank_documents(documents: List[Dict[str, Any]], query: str, top_k: int = 10) -> List[Dict[str, Any]]:
-    """
-    Rerank documents using FlashRank for better relevance ordering.
-    Skip reranking for small result sets where Azure Search scores are already good.
-    
-    Args:
-        documents: List of document chunks from search results
-        query: The user query to rerank against
-        top_k: Number of top reranked documents to return
-    
-    Returns:
-        List of reranked documents sorted by relevance score
-    """
-    try:
-        # Skip reranking for small result sets
-        if not documents or not query or len(documents) < 5:
-            return documents[:top_k]
-        
-        # Initialize FlashRank reranker (uses default model)
-        reranker = FlashrankRerank()
-        
-        # Convert search results to LangChain Document format
-        docs_to_rerank = [
-            Document(
-                page_content=doc.get("content_text", doc.get("description", "")),
-                metadata={
-                    "filename": doc.get("filename", ""),
-                    "content_path": doc.get("content_path", ""),
-                    "pages": doc.get("pages", ""),
-                    "score": doc.get("score", 0),
-                }
-            )
-            for doc in documents if doc.get("content_text") or doc.get("description")
-        ]
-        
-        if not docs_to_rerank:
-            return documents
-        
-        # Rerank documents using FlashRank
-        reranked_docs = reranker.compress_documents(docs_to_rerank, query)
-        
-        # Convert back to original format with FlashRank scores
-        reranked_results = [
-            {
-                **doc.metadata,
-                "content_text": doc.page_content,
-                "flashrank_score": getattr(doc, 'score', 0),
-            }
-            for doc in reranked_docs[:top_k]
-        ]
-        
-        return reranked_results
-    
-    except Exception as e:
-        print(f"⚠️ FlashRank reranking failed: {str(e)}")
-        # Fallback: return original documents if reranking fails
-        return documents[:top_k]
-
-
 # ------------------------------------------------------
 def sanitize_any(obj):
     if obj is None:
@@ -135,50 +74,60 @@ def create_llm():
     )
 
 
-def execute_tool_calls(tool_calls: list, tools_map: dict) -> list:
-    tool_messages = []
-    for tool_call in tool_calls:
-        if hasattr(tool_call, "name"):
-            tool_name = tool_call.name
-            tool_args = tool_call.args
-            tool_id = tool_call.id
-        else:
-            tool_name = tool_call["name"]
-            tool_args = tool_call["args"]
-            tool_id = tool_call["id"]
+def _invoke_single_tool(tool_call, tools_map: dict) -> ToolMessage:
+    """Execute a single tool call and return a ToolMessage."""
+    if hasattr(tool_call, "name"):
+        tool_name = tool_call.name
+        tool_args = tool_call.args
+        tool_id = tool_call.id
+    else:
+        tool_name = tool_call["name"]
+        tool_args = tool_call["args"]
+        tool_id = tool_call["id"]
 
-        if isinstance(tool_args, str):
-            try:
-                tool_args = json.loads(tool_args)
-            except json.JSONDecodeError:
-                tool_messages.append(
-                    ToolMessage(
-                        content=json.dumps(
-                            {"error": f"Invalid JSON in tool args: {tool_args}"}
-                        ),
-                        tool_call_id=tool_id,
-                    )
-                )
-                continue
-
-        if tool_name in tools_map:
-            try:
-                result = tools_map[tool_name].invoke(tool_args)
-                tool_messages.append(ToolMessage(content=result, tool_call_id=tool_id))
-            except Exception as e:
-                tool_messages.append(
-                    ToolMessage(
-                        content=json.dumps({"error": str(e)}), tool_call_id=tool_id
-                    )
-                )
-        else:
-            tool_messages.append(
-                ToolMessage(
-                    content=json.dumps({"error": f"Unknown tool: {tool_name}"}),
-                    tool_call_id=tool_id,
-                )
+    if isinstance(tool_args, str):
+        try:
+            tool_args = json.loads(tool_args)
+        except json.JSONDecodeError:
+            return ToolMessage(
+                content=json.dumps({"error": f"Invalid JSON in tool args: {tool_args}"}),
+                tool_call_id=tool_id,
             )
-    return tool_messages
+
+    if tool_name in tools_map:
+        try:
+            result = tools_map[tool_name].invoke(tool_args)
+            return ToolMessage(content=result, tool_call_id=tool_id)
+        except Exception as e:
+            return ToolMessage(
+                content=json.dumps({"error": str(e)}), tool_call_id=tool_id
+            )
+    else:
+        return ToolMessage(
+            content=json.dumps({"error": f"Unknown tool: {tool_name}"}),
+            tool_call_id=tool_id,
+        )
+
+
+def execute_tool_calls(tool_calls: list, tools_map: dict) -> list:
+    """Execute tool calls in parallel using threads when multiple calls exist."""
+    if len(tool_calls) <= 1:
+        return [_invoke_single_tool(tc, tools_map) for tc in tool_calls]
+
+    # Multiple tool calls — run in parallel
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    print(f"  ⚡ Executing {len(tool_calls)} tool calls in parallel")
+    with ThreadPoolExecutor(max_workers=min(len(tool_calls), 5)) as executor:
+        futures = {
+            executor.submit(_invoke_single_tool, tc, tools_map): i
+            for i, tc in enumerate(tool_calls)
+        }
+        # Collect results preserving original order
+        results = [None] * len(tool_calls)
+        for future in as_completed(futures):
+            idx = futures[future]
+            results[idx] = future.result()
+    return results
 
 def rag_node(state: PipelineState) -> Dict[str, Any]:
     """
@@ -419,17 +368,8 @@ CRITICAL:
                         if has_more:
                             print(f"  ⚠ More results available: nextSkip={tool_result.get('nextSkip')}, remaining={tool_result.get('remainingChunks')}")
                         print(f"{'─'*60}")
-
-                        # Rerank
-                        if "documents" in tool_result:
-                            original_docs = tool_result["documents"]
-                            if original_docs:
-                                reranked = rerank_documents(original_docs, user_query, top_k=len(original_docs))
-                                tool_result["documents"] = reranked
-                                tool_msg.content = json.dumps(tool_result)
-                                print(f"  ✅ Reranked {len(reranked)} docs")
                 except (json.JSONDecodeError, Exception) as e:
-                    print(f"⚠️ Reranking skipped: {str(e)}")
+                    print(f"⚠️ Result parsing error: {str(e)}")
 
             # 🔹 Sanitize all tool messages
             for tm in tool_messages:
