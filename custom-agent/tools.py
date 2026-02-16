@@ -121,6 +121,13 @@ Example 6 - Specific page of a document:
 Example 7 - List all categories:
   query="*", index_type="main_data", top_k=1, facets=["file_category_ai,count:100"]
 
+Example 8 - Summarize a document (read ALL pages with pagination):
+  Call 1: query="*", index_type="main_data", top_k=100, filter="document_title eq 'Report.pdf'", select_fields="content_text,document_title,content_path,locationMetadata"
+  → If hasMoreResults=true in response, make another call:
+  Call 2: query="*", index_type="main_data", top_k=100, filter="document_title eq 'Report.pdf'", select_fields="content_text,document_title,content_path,locationMetadata", skip=100
+  → Repeat with skip=200, 300... until hasMoreResults=false
+  → THEN summarize from ALL collected chunks
+
 --- RULES ---
 - USE facets for listing/counting queries (1 call). DO NOT loop per document.
 - DO NOT use facets for content/keyword searches.
@@ -144,18 +151,7 @@ Example 7 - List all categories:
         skip = None
         select_fields = None
 
-    print(f"\n🔍 TOOL CALL: azure_ai_search (HYBRID)")
-    print(f"   Query: {query}")
-    print(f"   Index: {index_type} ({index_name})")
-    print(f"   Top K: {top_k}")
-    if filter:
-        print(f"   Filter: {filter}")
-    if facets:
-        print(f"   Facets: {facets}")
-    if skip:
-        print(f"   Skip: {skip}")
-    if select_fields:
-        print(f"   Select: {select_fields}")
+    print(f"\n🔍 azure_ai_search | index={index_type} | query={query[:60]}{'...' if len(query)>60 else ''} | top_k={top_k} | filter={filter or 'none'} | facets={facets or 'none'} | skip={skip or 0}")
 
     try:
         client = SearchClient(
@@ -175,8 +171,9 @@ Example 7 - List all categories:
         # Build search parameters
         search_kwargs = {
             "search_text": query,
-            "top": min(top_k, 50),
+            "top": min(top_k, 100),
             "select": selected,
+            "include_total_count": True,
         }
 
         # Add optional filter
@@ -202,14 +199,12 @@ Example 7 - List all categories:
                     fields="content_embedding"
                 )
                 search_kwargs["vector_queries"] = [vector_query]
-                print(f"   ✓ Using hybrid search (keyword + vector)")
-            else:
-                print(f"   ⚠️ Using keyword-only search (embedding failed)")
-        else:
-            print(f"   ✓ Using wildcard search (no vector)")
 
         # Perform search
         results = client.search(**search_kwargs)
+
+        # Get total count
+        total_count = getattr(results, 'get_count', lambda: None)()
 
         docs = []
         scores = []
@@ -232,7 +227,7 @@ Example 7 - List all categories:
                     "text_document_id": result.get("text_document_id", ""),
                     "document_title": title,
                     "image_document_id": result.get("image_document_id", ""),
-                    "content": content[:1000],
+                    "content_text": content,
                     "content_path": source,
                     "page_number": page_number,
                     "bounding_polygon": bounding_polygon,
@@ -248,7 +243,7 @@ Example 7 - List all categories:
                 full_content = f"{title}\n\n{content}" if title else content
                 doc = {
                     "id": result.get("content_id"),
-                    "content": full_content[:1000],
+                    "content_text": full_content,
                     "score": result.get("@search.score", 0.0),
                     "source": source,
                 }
@@ -258,32 +253,28 @@ Example 7 - List all categories:
 
         avg_score = sum(scores) / len(scores) if scores else 0.0
 
-        print(f"   ✓ Found {len(docs)} docs (avg score: {avg_score:.2f})")
-        if docs:
-            source_key = "content_path" if index_type == "main_data" else "source"
-            print(f"   📄 Top result: {docs[0].get(source_key, '')} (score: {docs[0]['score']:.2f})")
-            print(f"   📝 Preview: {docs[0]['content'][:100]}...")
-
-        # Show top 3 results for visibility
-        if len(docs) > 1:
-            print(f"\n   📋 Top {min(3, len(docs))} Results:")
-            for i, doc in enumerate(docs[:3]):
-                src = doc.get("content_path", doc.get("source", ""))
-                page_info = f" (Page {doc['page_number']})" if doc.get("page_number") else ""
-                print(f"      {i+1}. {src}{page_info} (score: {doc['score']:.2f})")
-                print(f"         {doc['content'][:80]}...")
-
-        # Build response
+        # Build response (like LibreChat's AzureAISearch.js)
         response_data = {
-            "docs": docs,
-            "metadata": {
-                "returned": len(docs),
-                "avg_score": round(avg_score, 2),
-                "index": index_name,
-                "query": query,
-                "search_type": "hybrid" if (not is_wildcard and search_kwargs.get("vector_queries")) else "keyword",
-            }
+            "documents": docs,
+            "totalCount": total_count,
+            "returnedCount": len(docs),
+            "skip": skip or 0,
+            "hasMoreResults": (total_count is not None and (skip or 0) + len(docs) < total_count),
         }
+
+        # Add pagination helper
+        if response_data["hasMoreResults"]:
+            response_data["nextSkip"] = (skip or 0) + len(docs)
+            response_data["remainingChunks"] = total_count - ((skip or 0) + len(docs))
+
+        # Unique doc tracking
+        unique_titles = set()
+        for d in docs:
+            t = d.get("document_title", d.get("source", ""))
+            if t:
+                unique_titles.add(t)
+        response_data["uniqueDocumentsInBatch"] = len(unique_titles)
+        response_data["documentTitles"] = list(unique_titles)
 
         # Add facet results if facets were requested
         if facets:
@@ -292,41 +283,39 @@ Example 7 - List all categories:
                 if facet_results:
                     formatted_facets = {}
                     for field_name, facet_values in facet_results.items():
+                        is_doc_facet = field_name in ("document_title", "text_document_id")
                         formatted_facets[field_name] = [
                             {"value": fv["value"], "count": fv["count"]}
                             for fv in facet_values
                         ]
-                    response_data["facets"] = formatted_facets
-                    print(f"   📊 Facets: {', '.join(f'{k}: {len(v)} values' for k, v in formatted_facets.items())}")
+                        if is_doc_facet:
+                            formatted_facets[f"{field_name}_note"] = f"Number of items ({len(facet_values)}) = number of unique documents."
+                            response_data["uniqueDocumentCount"] = len(facet_values)
 
-                    # CRITICAL: Create document_list for easy LLM parsing when faceting by document_title
+                    response_data["facets"] = formatted_facets
+
+                    # Document list with URLs for easy LLM parsing
                     if "document_title" in formatted_facets:
                         document_list = []
                         for facet in formatted_facets["document_title"]:
                             doc_title = facet["value"]
-                            doc_count = facet["count"]
-
-                            # Find first matching doc to get content_path
                             matching_doc = next((d for d in docs if d.get("document_title") == doc_title), None)
                             if matching_doc:
                                 document_list.append({
                                     "title": doc_title,
                                     "url": matching_doc.get("content_path", ""),
-                                    "count": doc_count,
-                                    "score": matching_doc.get("score", 0.0)
+                                    "count": facet["count"],
                                 })
-
                         response_data["document_list"] = document_list
-                        print(f"   📋 Document List: {len(document_list)} unique documents with URLs")
 
             except Exception as facet_err:
                 print(f"   ⚠️ Facet extraction error: {facet_err}")
 
-        # Add filter/pagination info to metadata
-        if filter:
-            response_data["metadata"]["filter"] = filter
-        if skip:
-            response_data["metadata"]["skip"] = skip
+        # Add summary note
+        if response_data.get("uniqueDocumentCount"):
+            response_data["summary"] = f"Found {response_data['uniqueDocumentCount']} unique documents (out of {total_count} total chunks)."
+        elif total_count:
+            response_data["important_note"] = "totalCount represents CHUNKS, not documents. Use facets to count unique documents."
 
         return json.dumps(response_data)
 

@@ -266,7 +266,14 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
 
 3. PAGE-SPECIFIC ("What's on page 6 of Report.pdf"):
    → Use filter with locationMetadata/pageNumber.
-   
+
+4. SUMMARIZATION ("Summarize document X", "Give me a summary of X"):
+   → You MUST read ALL pages of the document before summarizing.
+   → Step 1: First call with filter="document_title eq 'X.pdf'", top_k=100, select_fields="content_text,document_title,content_path,locationMetadata"
+   → Step 2: Check response — if hasMoreResults=true, call again with skip=nextSkip to get remaining pages.
+   → Step 3: Repeat until hasMoreResults=false (you have all chunks).
+   → ONLY THEN synthesize the summary from all collected content.
+   → NEVER summarize from partial data — the user expects a complete summary.
 SYNTHESIS RULES:
 - Executive Summary (2-3 sentences), then Detailed Analysis with inline citations, then Key Takeaways (3-5 bullets).
 - ALWAYS cite with page numbers: 📄 [filename](content_path) (Page N)
@@ -354,12 +361,16 @@ CRITICAL:
         all_new_messages.append(response)
 
         if response.tool_calls:
-            # Log tool call args
+            # Log tool call args (clean single-block format)
             for tc in response.tool_calls:
                 tc_name = tc.name if hasattr(tc, "name") else tc.get("name", "?")
                 tc_args = tc.args if hasattr(tc, "args") else tc.get("args", {})
-                print(f"\n🔧 TOOL CALL (iteration {iteration}): {tc_name}")
-                print(f"   Args: {json.dumps(tc_args, indent=2, default=str)}")
+                print(f"\n{'─'*60}")
+                print(f"🔧 Tool Call [{iteration}]: {tc_name}")
+                print(f"{'─'*60}")
+                for k, v in (tc_args.items() if isinstance(tc_args, dict) else {}):
+                    print(f"  {k}: {v}")
+                print(f"{'─'*60}")
 
             tool_messages = execute_tool_calls(response.tool_calls, tools_map)
 
@@ -374,37 +385,51 @@ CRITICAL:
                         tool_result = parsed_results[tool_msg.content]
 
                     if isinstance(tool_result, dict):
-                        # Log search result summary
-                        total = tool_result.get("totalCount", tool_result.get("total_count", "?"))
-                        docs = tool_result.get("documents", tool_result.get("docs", []))
-                        facets = tool_result.get("facets", {})
-                        print(f"\n📊 SEARCH RESULTS (iteration {iteration}):")
-                        print(f"   Total chunks: {total}")
-                        print(f"   Returned docs: {len(docs) if isinstance(docs, list) else '?'}")
-                        if facets:
-                            for facet_name, facet_vals in facets.items():
-                                if isinstance(facet_vals, list):
-                                    print(f"   Facet '{facet_name}': {len(facet_vals)} unique values")
-                        # Log first 5 doc titles + pages
-                        if isinstance(docs, list):
-                            for i, d in enumerate(docs[:5]):
-                                title = d.get("document_title", d.get("filename", "?"))
-                                page = d.get("page_number", d.get("pageNumber", "?"))
-                                score = d.get("score", d.get("@search.score", "?"))
-                                path = d.get("content_path", "")[:80]
-                                print(f"   [{i+1}] {title} | Page: {page} | Score: {score} | Path: {path}...")
-                            if len(docs) > 5:
-                                print(f"   ... and {len(docs) - 5} more documents")
+                        total = tool_result.get("totalCount", "?")
+                        docs = tool_result.get("documents", [])
+                        facets_data = tool_result.get("facets", {})
+                        unique_count = tool_result.get("uniqueDocumentCount", tool_result.get("uniqueDocumentsInBatch", "?"))
+                        has_more = tool_result.get("hasMoreResults", False)
 
+                        print(f"\n{'─'*60}")
+                        print(f"📊 Search Results [{iteration}]")
+                        print(f"{'─'*60}")
+                        print(f"  Total chunks: {total} | Returned: {len(docs) if isinstance(docs, list) else '?'} | Unique docs: {unique_count} | More: {has_more}")
+
+                        # Facets
+                        if facets_data:
+                            for fn, fv in facets_data.items():
+                                if isinstance(fv, list):
+                                    print(f"  Facet [{fn}]: {len(fv)} values")
+
+                        # Top 5 docs
+                        if isinstance(docs, list) and docs:
+                            print(f"  {'─'*56}")
+                            for i, d in enumerate(docs[:5]):
+                                title = d.get("document_title", d.get("source", "?"))
+                                page = d.get("page_number", "?")
+                                score = d.get("score", "?")
+                                content_preview = (d.get("content_text", "") or "")[:80]
+                                print(f"  [{i+1}] {title} (p.{page}) score={score}")
+                                if content_preview:
+                                    print(f"      {content_preview}...")
+                            if len(docs) > 5:
+                                print(f"  ... +{len(docs) - 5} more")
+
+                        if has_more:
+                            print(f"  ⚠ More results available: nextSkip={tool_result.get('nextSkip')}, remaining={tool_result.get('remainingChunks')}")
+                        print(f"{'─'*60}")
+
+                        # Rerank
                         if "documents" in tool_result:
                             original_docs = tool_result["documents"]
                             if original_docs:
                                 reranked = rerank_documents(original_docs, user_query, top_k=len(original_docs))
                                 tool_result["documents"] = reranked
                                 tool_msg.content = json.dumps(tool_result)
-                                print(f"   ✅ Reranked {len(reranked)} documents using FlashRank")
+                                print(f"  ✅ Reranked {len(reranked)} docs")
                 except (json.JSONDecodeError, Exception) as e:
-                    print(f"⚠️ Document reranking skipped: {str(e)}")
+                    print(f"⚠️ Reranking skipped: {str(e)}")
 
             # 🔹 Sanitize all tool messages
             for tm in tool_messages:
