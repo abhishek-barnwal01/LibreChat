@@ -403,11 +403,49 @@ def generate_stream(user_query, langchain_messages, user_id, session_id, model):
         yield f"data: {json.dumps(error_chunk)}\n\n"
         yield "data: [DONE]\n\n"
 
+# ---------- Search Tool Endpoint (for LibreChat Agent OpenAPI Action) ----------
+@app.route("/v1/tools/search", methods=["POST"])
+def tool_search():
+    """
+    Exposes azure_ai_search as a REST endpoint for LibreChat Agent OpenAPI Actions.
+    This allows a LibreChat Agent to call this tool natively with tool call UI.
+    """
+    from tools import azure_ai_search
+
+    data = request.json or {}
+
+    query = data.get("query", "*")
+    index_type = data.get("index_type", "main_data")
+    top_k = data.get("top_k", 10)
+    filter_str = data.get("filter", None)
+    facets = data.get("facets", None)
+    skip = data.get("skip", None)
+    select_fields = data.get("select_fields", None)
+
+    try:
+        result = azure_ai_search.invoke({
+            "query": query,
+            "index_type": index_type,
+            "top_k": top_k,
+            "filter": filter_str,
+            "facets": facets,
+            "skip": skip,
+            "select_fields": select_fields,
+        })
+        return Response(result, mimetype="application/json")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 # ---------- Run Flask ----------
 if __name__ == "__main__":
     print("\n🚀 Starting LangGraph RAG Server...")
     print("💡 POST → http://localhost:5001/chat")
     print('   {"question": "your question", "session_id": "user123"}')
     print("\n💡 POST → http://localhost:5001/v1/chat/completions (LibreChat)")
-    print('   OpenAI-compatible endpoint\n')
+    print('   OpenAI-compatible endpoint')
+    print("\n💡 POST → http://localhost:5001/v1/tools/search (Agent Tool)")
+    print('   OpenAPI Action endpoint for LibreChat Agents\n')
     app.run(debug=False, port=5001, host='0.0.0.0')

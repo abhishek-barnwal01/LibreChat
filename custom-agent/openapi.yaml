@@ -1,0 +1,103 @@
+openapi: 3.0.0
+info:
+  title: Azure AI Search Tool
+  description: Search documents in Azure AI Search with hybrid search, filters, facets, and pagination.
+  version: "1.0"
+servers:
+  - url: http://localhost:5001
+    description: Custom Agent Flask server
+
+paths:
+  /v1/tools/search:
+    post:
+      operationId: azure_ai_search
+      summary: Search documents in Azure AI Search. The index stores document CHUNKS, not whole documents.
+      description: |
+        Search documents with hybrid (text + vector) search. Supports filters, facets for counting/listing, pagination, and field selection.
+
+        CRITICAL RULES:
+        - USE facets for listing/counting queries (1 call). DO NOT loop per document.
+        - ALWAYS add "and text_document_id ne ''" to filter when listing documents (gets PDF paths instead of image paths).
+        - WITHOUT ",count:1000" on facets you only get 10 values max.
+        - For semantic index: ONLY use query, index_type, top_k (no filter/facets/skip/select_fields).
+
+        EXACT file_category_ai values (case-sensitive):
+        "Analysis", "Annual presentation", "Brand equity", "Brand Health track", "Concept testing", "Home panel", "Link testing", "Media Optimization", "Miscellaneous", "Needscope", "Post Launch Evaluation", "Product acceptance testing", "Product Performance Evaluation", "Retail audit", "Usage/Attitude (U&A)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+                - index_type
+                - top_k
+              properties:
+                query:
+                  type: string
+                  description: Search text, or "*" for wildcard (when using filters/facets only).
+                index_type:
+                  type: string
+                  enum: [main_data, semantic]
+                  description: '"main_data" supports all params. "semantic" only supports query, index_type, top_k.'
+                top_k:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  description: Number of results to return.
+                filter:
+                  type: string
+                  nullable: true
+                  description: 'OData filter (main_data only, CASE-SENSITIVE). Example: "file_category_ai eq ''Brand equity'' and text_document_id ne ''''"'
+                facets:
+                  type: array
+                  nullable: true
+                  items:
+                    type: string
+                  description: 'Facetable fields for counting/listing. Add ",count:1000" to get up to 1000 values. Facetable fields: document_title, text_document_id, content_path, file_category_ai, country_ai'
+                skip:
+                  type: integer
+                  nullable: true
+                  description: Pagination offset (main_data only).
+                select_fields:
+                  type: string
+                  nullable: true
+                  description: 'Comma-separated fields to return. VALID: document_title, content_path, content_text, content_id, text_document_id, image_document_id, locationMetadata, file_category_ai, product_category_ai, brand_ai, file_time_period_ai, country_ai. MUST include "content_text" when reading content. NEVER include "content_embedding".'
+      responses:
+        "200":
+          description: Search results with documents, facets, pagination info.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      type: object
+                  totalCount:
+                    type: integer
+                  returnedCount:
+                    type: integer
+                  hasMoreResults:
+                    type: boolean
+                  nextSkip:
+                    type: integer
+                  uniqueDocumentCount:
+                    type: integer
+                  facets:
+                    type: object
+                  document_list:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        title:
+                          type: string
+                        url:
+                          type: string
+                        count:
+                          type: integer
+        "500":
+          description: Server error
