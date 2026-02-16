@@ -252,33 +252,29 @@ import re
 def append_sas_to_blob_urls(markdown_text: str) -> str:
     """
     Finds all Azure Blob Storage URLs in markdown and appends SAS token.
-    Also fixes known hostname typos before appending SAS.
     """
     sas_token = os.getenv('AZURE_BLOB_SAS_TOKEN', '')
-
+    
     if not sas_token:
         print("⚠️ WARNING: AZURE_BLOB_SAS_TOKEN not set")
         return markdown_text
-
-    # Fix known hostname typo: gcpllcmiadls001 (double 'll') → gcplcmiadls001 (single 'l')
-    markdown_text = markdown_text.replace('gcpllcmiadls001', 'gcplcmiadls001')
-
+    
     # Pattern to match blob URLs
     blob_pattern = re.compile(
         r'(https://[a-zA-Z0-9]+\.blob\.core\.windows\.net/[^\s\)]+?)(?=[\s\)\]]|$)'
     )
-
+    
     def add_sas(match):
         url = match.group(1)
-
+        
         # Skip if SAS already present
         if 'sv=' in url or 'sig=' in url:
             return url
-
+        
         # Append SAS token
         separator = '&' if '?' in url else '?'
         return f"{url}{separator}{sas_token}"
-
+    
     return blob_pattern.sub(add_sas, markdown_text)
 
 # ---------- Streaming generator for LibreChat ----------

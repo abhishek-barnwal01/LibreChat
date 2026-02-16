@@ -6,32 +6,8 @@ from azure.core.credentials import AzureKeyCredential
 from openai import AzureOpenAI
 import config
 import json
-import re
 from typing import Optional, List
 import hashlib
-
-
-# ---------- URL helpers ----------
-_IMAGE_EXTENSIONS = re.compile(r'\.(jpg|jpeg|png|gif|bmp|tiff|webp)(\?|$)', re.IGNORECASE)
-_IMAGE_PATH_MARKERS = ('image-output', 'normalized_images')
-
-
-def _is_image_url(url: str) -> bool:
-    """Return True if the URL points to an extracted image chunk, not an original document."""
-    if not url:
-        return False
-    lower = url.lower()
-    if _IMAGE_EXTENSIONS.search(lower):
-        return True
-    return any(marker in lower for marker in _IMAGE_PATH_MARKERS)
-
-
-def _normalize_url(url: str) -> str:
-    """Fix known hostname typos in Azure Blob Storage URLs."""
-    if not url:
-        return url
-    # gcpllcmiadls001 (double 'll') → gcplcmiadls001 (single 'l')
-    return url.replace('gcpllcmiadls001', 'gcplcmiadls001')
 
 # 🚀 EMBEDDING CACHE - Avoid regenerating embeddings for same queries
 _embedding_cache = {}
@@ -235,9 +211,7 @@ Example 8 - Summarize a document (read ALL pages with pagination):
         for result in results:
             content = result.get("content_text", "")
             title = result.get("document_title", "")
-            source = _normalize_url(
-                result.get("content_path", result.get("document_title", "unknown"))
-            )
+            source = result.get("content_path", result.get("document_title", "unknown"))
 
             if index_type == "main_data":
                 # Extract locationMetadata (nested complex type)
@@ -321,35 +295,16 @@ Example 8 - Summarize a document (read ALL pages with pagination):
                     response_data["facets"] = formatted_facets
 
                     # Document list with URLs for easy LLM parsing
-                    # Prefer non-image content_path for each document title
                     if "document_title" in formatted_facets:
                         document_list = []
                         for facet in formatted_facets["document_title"]:
                             doc_title = facet["value"]
-                            # Find best (non-image) content_path for this document
-                            best_url = ""
-                            for d in docs:
-                                if d.get("document_title") == doc_title:
-                                    cp = d.get("content_path", "")
-                                    if cp and not _is_image_url(cp):
-                                        best_url = cp
-                                        break  # Found a non-image URL, use it
-                                    elif cp and not best_url:
-                                        best_url = cp  # Fallback to image URL if nothing better
-                            # Only include non-image URLs in the list
-                            if best_url and not _is_image_url(best_url):
+                            matching_doc = next((d for d in docs if d.get("document_title") == doc_title), None)
+                            if matching_doc:
                                 document_list.append({
                                     "title": doc_title,
-                                    "url": best_url,
+                                    "url": matching_doc.get("content_path", ""),
                                     "count": facet["count"],
-                                })
-                            else:
-                                # Still include the doc but without a link
-                                document_list.append({
-                                    "title": doc_title,
-                                    "url": "",
-                                    "count": facet["count"],
-                                    "note": "Original PDF link not available (only image chunks found)",
                                 })
                         response_data["document_list"] = document_list
 
