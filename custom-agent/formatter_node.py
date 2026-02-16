@@ -22,7 +22,10 @@ def create_llm():
 def safe_utf8(text: str) -> str:
     if not text:
         return ""
-    return text.encode("utf-8", errors="replace").decode("utf-8")
+    # Replace invalid UTF-8 characters with '?'
+    # Also remove null bytes which PostgreSQL cannot handle in JSON
+    cleaned = text.encode("utf-8", errors="replace").decode("utf-8")
+    return cleaned.replace("\x00", "")
 
 def sanitize_any(obj):
     if obj is None:
@@ -52,13 +55,6 @@ def formatter_node(state: PipelineState) -> Dict[str, Any]:
     rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
     confidence = state.evaluation.confidence_score if state.evaluation else 0.8
 
-    # Extract retrieved_docs for fallback link generation
-    retrieved_docs = []
-    if state.rag_output and hasattr(state.rag_output, 'retrieved_docs'):
-        retrieved_docs = state.rag_output.retrieved_docs if isinstance(state.rag_output, dict) else state.rag_output.get('retrieved_docs', [])
-    elif state.rag_output and isinstance(state.rag_output, dict):
-        retrieved_docs = state.rag_output.get('retrieved_docs', [])
-
     # DEBUG: Print the full RAG output
     print("\n" + "-"*70)
     print("🐛 DEBUG: RAG OUTPUT RECEIVED")
@@ -67,9 +63,6 @@ def formatter_node(state: PipelineState) -> Dict[str, Any]:
         print(f"RAG Output Type: {type(state.rag_output)}")
         print(f"RAG Output Keys: {state.rag_output.keys() if hasattr(state.rag_output, 'keys') else 'N/A (not dict)'}")
         print(f"\nFull RAG Output:\n{json.dumps(state.rag_output, indent=2, default=str)}")
-        print(f"\n📊 Retrieved Docs Count: {len(retrieved_docs)}")
-        if retrieved_docs:
-            print(f"   Sample doc 1: {retrieved_docs[0] if len(retrieved_docs) > 0 else 'N/A'}")
     else:
         print("⚠️ RAG Output is None!")
     print("-"*70)
@@ -93,11 +86,6 @@ RAG'S RAW ANSWER (Unformatted)
 {rag_final_answer}
 
 ==================================================
-RETRIEVED DOCUMENTS (with URLs)
-==================================================
-{json.dumps(retrieved_docs, indent=2, default=str) if retrieved_docs else "No retrieved docs"}
-
-==================================================
 CONFIDENCE SCORE: {confidence:.2f} / 1.00
 ==================================================
 
@@ -109,47 +97,59 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
 
 1. STRUCTURE & SECTIONS
    - Start with a brief, direct answer to the question (1-2 sentences)
-   - Use ### for main sections ONLY when necessary (don't overuse)
+   - Use clear section headers with ### for different topics
+   - Separate distinct concepts into logical sections
    - Add blank lines between sections for readability
-   - Keep structure simple and clean
 
 2. KEY INFORMATION FORMATTING
    - Use **bold** for important numbers, metrics, and key findings
    - Use bullet points (-) for lists of items
    - Use numbered lists (1.) for sequential information or steps
-   - Use *italics* sparingly for emphasis
+   - Use *italics* for source names, document titles, and time periods
 
 3. DATA PRESENTATION
    - Format percentages clearly: **+16.6% YoY** or **41.6% penetration**
    - Format comparisons: **Brand A** vs **Brand B**
-   - Create markdown tables when comparing multiple data points (keep tables simple)
-   - Use Mermaid diagrams ONLY when they significantly enhance understanding (not for every response)
-
+   - Create markdown tables when comparing multiple data points
+   - Example table:
+     | Metric | Value | Change |
+     |--------|-------|--------|
+     | Sales  | $10M  | +15%   |
+   - Highlight trends: 📈 for growth, 📉 for decline (when appropriate)
+   - Use visual data relationships, including Mermaid diagrams when only when explicitly requested or when it significantly enhances understanding (avoid overuse)
+ 
 4. CITATIONS & SOURCES
    - At the end, add a "### Sources" section
    - List all referenced documents/reports as bullet points
-   - Format: 📄 [filename](content_path) (Page N)
-   - Example: 📄 [Soaps Annual Presentation 2022](https://...) (Page 5)
+   - Format: - Always use 📄 [filename](content_path)
+   - Always include page number when available: 📄 [filename](content_path) (Page N)
+   - Example: - *Soaps Annual Presentation 2022 - Nielsen IQ RMS* (Page 5)
    - Extract cleaned filename by removing UUID prefix
-   - Use RETRIEVED DOCUMENTS section above to get URLs
+   - Format as markdown links
 
 5. CLARITY & READABILITY
    - Use short paragraphs (2-4 sentences max)
    - Break up long walls of text
-   - Make it scannable
-   - Natural, conversational tone - not overly formal
+   - Use line breaks generously
+   - Make it scannable - readers should quickly find what they need
 
-6. EMOJI USAGE - MINIMAL!
-   - ONLY use 📄 for document citations in Sources section
-   - DO NOT use emojis like 📈 📉 ✓ ✗ 🔹 etc. in the main content
-   - Keep the response professional and clean
+6. CONFIDENCE DISCLAIMERS
+   - If confidence < 0.85: Add a note at the top or bottom
+   - Format: > Note: This answer has moderate confidence. Please verify critical details from the original sources.
+   - If confidence < 0.65: Be more explicit about uncertainty
+   - Format: > Disclaimer: The confidence in this answer is low. Please review the source documents for accurate information.
 
-7. PRESERVE ACCURACY
+7. CONVERSATIONAL TONE
+   - Make it friendly but professional
+   - Use "Based on the data..." or "According to..."
+   - Maintain natural language, not robotic
+
+8. PRESERVE ACCURACY
    - Keep ALL numbers, dates, and facts EXACTLY as provided
-   - Don't add information not in the RAW answer
+   - Add only information that was in the RAW answer
    - Retain all important details
 
-8. ADVANCED FORMATTING OPTIONS
+9. ADVANCED FORMATTING OPTIONS
    - Code Blocks: Use triple backticks with language for examples
      ```python
      def calculate_growth(old, new):
@@ -288,7 +288,7 @@ Your response should include:
 - Confidence disclaimer if confidence < 0.85
 - Accurate facts maintained
 - Scannable and easy to read structure
-- Advanced formatting (tables, mermaid, code blocks) when it enhances understanding
+- Advanced formatting (tables, mermaid, code blocks) when it is explicitly requested by user or when it enhances understanding
 """
 
     # Invoke LLM with retry logic for jailbreak detection
