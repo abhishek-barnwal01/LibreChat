@@ -39,13 +39,15 @@ def sanitize_any(obj):
     return obj
 
 # ----------------- Node -----------------
-def formatter_node(state: PipelineState) -> Dict[str, Any]:
+def formatter_node(state: PipelineState, config: dict = None) -> Dict[str, Any]:
     """
     Formatter Node:
     - Receives RAG final answer + confidence score
     - Polishes the answer to make it user-friendly
     - Outputs structured FormatterOutput
     """
+    from app import check_cancelled
+    check_cancelled(config or {})
 
     print("\n" + "="*70)
     print("✨ FORMATTER NODE")

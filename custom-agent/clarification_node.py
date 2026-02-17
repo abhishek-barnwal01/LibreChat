@@ -2,7 +2,10 @@
 from models import PipelineState
 from typing import Dict, Any
 
-def clarification_node(state: PipelineState) -> Dict[str, Any]:
+def clarification_node(state: PipelineState, config: dict = None) -> Dict[str, Any]:
+    from app import check_cancelled
+    check_cancelled(config or {})
+
     ambiguity = state.ambiguity_detected
 
     # If no ambiguity, do nothing

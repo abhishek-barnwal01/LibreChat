@@ -177,11 +177,14 @@ def _invoke_single_tool_sync(tool_call, tools_map: dict) -> ToolMessage:
             tool_call_id=tool_id,
         )
 
-def rag_node(state: PipelineState) -> Dict[str, Any]:
+def rag_node(state: PipelineState, config: dict = None) -> Dict[str, Any]:
     """
     Full RAG node with multi-phase document retrieval, page-level extraction, synthesis,
     citations, and quality standards. Uses full enterprise-grade prompt.
     """
+    from app import check_cancelled
+    check_cancelled(config or {})
+
     print("\n" + "="*70)
     print("📚 RAG NODE")
     print("RAG MESSAGES:")
@@ -320,6 +323,7 @@ CRITICAL:
     response = None
 
     for iteration in range(max_iterations):
+        check_cancelled(config or {})
         try:
             # 🔹 Filter sensitive content from messages before sending
             filtered_messages = []

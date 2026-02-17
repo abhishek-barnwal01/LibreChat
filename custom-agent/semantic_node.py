@@ -150,7 +150,7 @@ def execute_tool_calls(tool_calls: list, tools_map: dict) -> list:
         return list(asyncio.run(_gather_all()))
 
 
-def semantic_node(state: PipelineState) -> Dict[str, Any]:
+def semantic_node(state: PipelineState, config: dict = None) -> Dict[str, Any]:
     """
     Two-step semantic enrichment node.
 
@@ -163,6 +163,8 @@ def semantic_node(state: PipelineState) -> Dict[str, Any]:
     CLARIFICATION MODE: If awaiting_clarification is True, skip Step 1
     and go directly to Step 2C (semantic enrichment) using clarification response.
     """
+    from app import check_cancelled
+    check_cancelled(config or {})
 
     print("\n" + "=" * 70)
     print("🧠 SEMANTIC NODE")
@@ -792,6 +794,7 @@ IMPORTANT:
         response = None
         
         for iteration in range(max_iterations):
+            check_cancelled(config or {})
             print(f"\n--- Iteration {iteration + 1} ---")
 
             response = llm_with_tools.invoke(agent_messages)

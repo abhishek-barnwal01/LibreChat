@@ -294,25 +294,37 @@ def _make_chunk(chunk_id, created_time, model, content=None, role=None, finish_r
     }
 
 
+class CancelledError(Exception):
+    """Raised inside graph nodes when the client disconnects."""
+    pass
+
+
+def check_cancelled(config):
+    """Call at the top of every node to bail out early on cancellation."""
+    cancel_event = config.get("configurable", {}).get("cancel_event")
+    if cancel_event is not None and cancel_event.is_set():
+        raise CancelledError("Client disconnected")
+
+
 def generate_stream(user_query, langchain_messages, user_id, session_id, model):
     """
     Streams the response with tool call markers for LibreChat's frontend.
 
     Runs graph.invoke() in a background thread so the generator can detect
     client disconnects (stop button / chat switch) via SSE heartbeats.
-    When the client disconnects, the generator exits and the daemon thread
-    finishes in the background without sending further data.
+    When the client disconnects, cancel_event is set, which causes the
+    currently executing node to raise CancelledError and stop the graph.
 
     Flow:
-    1. Run graph in background thread
+    1. Run graph in background thread with cancel_event in config
     2. Send heartbeats while waiting (detects client disconnect)
-    3. Send role: "assistant" (required for markdown rendering)
-    4. Extract tool calls → send as <!-- TOOL_CALL --> / <!-- TOOL_RESULT --> markers
-    5. Stream the final formatted text
+    3. On disconnect -> set cancel_event -> graph nodes bail out
+    4. On success -> stream role, tool call markers, and final text
     """
     result_container = {}
     error_container = {}
     done_event = threading.Event()
+    cancel_event = threading.Event()
 
     def run_graph():
         try:
@@ -322,10 +334,18 @@ def generate_stream(user_query, langchain_messages, user_id, session_id, model):
                     "messages": langchain_messages,
                     "user_id": user_id,
                 },
-                config={"configurable": {"thread_id": session_id}},
+                config={
+                    "configurable": {
+                        "thread_id": session_id,
+                        "cancel_event": cancel_event,
+                    }
+                },
             )
+        except CancelledError:
+            print(f"[run_graph] Graph cancelled for session {session_id}")
         except Exception as e:
-            error_container['error'] = e
+            if not cancel_event.is_set():
+                error_container['error'] = e
         finally:
             done_event.set()
 
@@ -338,10 +358,16 @@ def generate_stream(user_query, langchain_messages, user_id, session_id, model):
     # Wait for graph completion, sending SSE comments as heartbeats.
     # If client disconnects, the yield raises GeneratorExit (or the
     # WSGI server closes the generator), stopping this function.
-    while not done_event.wait(timeout=2.0):
-        # SSE comment line — invisible to the client but keeps the
-        # connection alive and lets the server detect a broken pipe.
-        yield ": heartbeat\n\n"
+    try:
+        while not done_event.wait(timeout=2.0):
+            yield ": heartbeat\n\n"
+    except GeneratorExit:
+        print(f"[generate_stream] Client disconnected for session {session_id}, cancelling graph")
+        cancel_event.set()
+        return
+
+    if cancel_event.is_set():
+        return
 
     if 'error' in error_container:
         import traceback
@@ -405,6 +431,7 @@ def generate_stream(user_query, langchain_messages, user_id, session_id, model):
 
     except GeneratorExit:
         print(f"[generate_stream] Client disconnected during response for session {session_id}")
+        cancel_event.set()
         return
 
 # ---------- Search Tool Endpoint (for LibreChat Agent OpenAPI Action) ----------
