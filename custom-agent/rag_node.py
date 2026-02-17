@@ -177,14 +177,11 @@ def _invoke_single_tool_sync(tool_call, tools_map: dict) -> ToolMessage:
             tool_call_id=tool_id,
         )
 
-def rag_node(state: PipelineState, config: dict = None) -> Dict[str, Any]:
+def rag_node(state: PipelineState) -> Dict[str, Any]:
     """
     Full RAG node with multi-phase document retrieval, page-level extraction, synthesis,
     citations, and quality standards. Uses full enterprise-grade prompt.
     """
-    from app import check_cancelled
-    check_cancelled(config or {})
-
     print("\n" + "="*70)
     print("📚 RAG NODE")
     print("RAG MESSAGES:")
@@ -256,14 +253,16 @@ CRITICAL RULES:
 
 RETRIEVAL STRATEGY — Pick the right approach for each query type:
 
-1. LISTING/COUNTING ("List all X", "How many X", "Show me all X documents"):
-   → Make exactly ONE search call with facets=["document_title,count:1000"] and select_fields="document_title,content_path".
-   → The response will contain a "document_list" array with title, url, and count for each unique document.
-   → The response will also contain "uniqueDocumentCount" with the total count.
+1. LISTING/COUNTING ("List all X", "How many X"):
+   → Use facets in ONE call. Never loop per document.
+   → Include ALL documents from facets in your response — do NOT filter or subset them.
+   → When listing documents with content_path, ALWAYS add "and text_document_id ne ''" to filter. Without this filter, you may get image paths instead of PDF paths. DO NOT return image paths when user is asking for documents.
+    Examples:
+    - Wrong: "file_category_ai eq 'Brand equity'" → Returns image paths ❌
+    - Right: "file_category_ai eq 'Brand equity' and text_document_id ne ''" → Returns PDF paths ✅
    → STOP IMMEDIATELY after this one call. Do NOT paginate (no skip calls). Do NOT search for individual documents.
    → Use the "document_list" array directly to build your answer — it already has all unique document names and their URLs.
    → Include ALL documents from the document_list — do NOT filter or subset them.
-   → Do NOT add a separate "Sources" or "Citations" section — the document list IS the answer.
 
 2. CONTENT SEARCH ("What does X say about Y", "Find insights on Z"):
    → Use keyword search with top_k=10-50. No facets needed.
@@ -272,20 +271,15 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
 3. PAGE-SPECIFIC ("What's on page 6 of Report.pdf"):
    → Use filter with locationMetadata/pageNumber.
 
-4. SUMMARIZATION ("Summarize document X"):
+4. SUMMARIZATION ("Summarize document X", "Give me a summary of X"):
    → First call: top_k=100, select_fields="content_text,document_title,content_path,locationMetadata". Check totalCount.
    → If totalCount <= 300: paginate to read all chunks (top_k=100, skip=100, skip=200).
    → If totalCount > 300: sample beginning (already have first 100), middle (skip=totalCount/2, top_k=100), end (skip=totalCount-100, top_k=100). Max 4 calls total.
 
-URL RULES:
-- Use content_path URLs from search results as-is — never reconstruct or modify URLs.
-- IGNORE any content_path that points to an image file (ends in .jpg, .jpeg, .png, .gif, .bmp, .tiff, .webp or contains "image-output" or "normalized_images" in the path). These are extracted image chunks, not original documents. Only use content_path URLs that point to PDF/DOCX/PPTX documents.
-- If the content_path URL contains the hostname "gcpllcmiadls001" (with double "ll"), replace it with "gcplcmiadls001" (single "l") — this is a known data typo.
-
 SYNTHESIS RULES:
 - Executive Summary (2-3 sentences), then Detailed Analysis with inline citations, then Key Takeaways (3-5 bullets).
 - ALWAYS cite with page numbers: 📄 [filename](content_path) (Page N)
-- For listing queries: return ALL documents from the document_list, not a filtered subset. Do NOT add a "Sources" section — the list is the answer.
+- For listing queries: return ALL documents from search, not a filtered subset.
 - Evidence-based claims only — do not fabricate information.
 
 OUTPUT — Return valid JSON:
@@ -323,7 +317,6 @@ CRITICAL:
     response = None
 
     for iteration in range(max_iterations):
-        check_cancelled(config or {})
         try:
             # 🔹 Filter sensitive content from messages before sending
             filtered_messages = []
@@ -418,7 +411,7 @@ CRITICAL:
                                 title = d.get("document_title", d.get("source", "?"))
                                 page = d.get("page_number", "?")
                                 score = d.get("score", "?")
-                                content_preview = (d.get("content_text", "") or "")[:80]
+                                content_preview = (d.get("content_text", "") or "")
                                 print(f"  [{i+1}] {title} (p.{page}) score={score}")
                                 if content_preview:
                                     print(f"      {content_preview}...")
