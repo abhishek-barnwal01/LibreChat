@@ -87,9 +87,8 @@ PARAMETERS:
   Facetable fields: document_title, text_document_id, content_path, file_category_ai, country_ai
 - skip: Pagination offset (main_data only)
 - select_fields: Comma-separated fields to return (main_data only).
-  VALID fields: document_title, content_path, content_text, content_id, text_document_id, image_document_id, locationMetadata, file_category_ai, product_category_ai, brand_ai, file_time_period_ai, country_ai
+  VALID fields ONLY: document_title, content_path, content_text, content_id, text_document_id, image_document_id, locationMetadata, file_category_ai, product_category_ai, brand_ai, file_time_period_ai, country_ai
   MUST include "content_text" when you need to READ document content. Omit it only for listing/counting.
-  NEVER include "content_embedding" (huge float array, useless for analysis) or "blob_id".
 
 EXACT file_category_ai values (case-sensitive):
 "Analysis", "Annual presentation", "Brand equity", "Brand Health track", "Concept testing", "Home panel", "Link testing", "Media Optimization", "Miscellaneous", "Needscope", "Post Launch Evaluation", "Product acceptance testing", "Product Performance Evaluation", "Retail audit", "Usage/Attitude (U&A)"
@@ -121,7 +120,7 @@ Example 6 - Specific page of a document:
 Example 7 - List all categories:
   query="*", index_type="main_data", top_k=1, facets=["file_category_ai,count:100"]
 
-Example 8 - Summarize a document:
+Example 8 - Summarize a document (read ALL pages with pagination):
   First call: query="*", index_type="main_data", top_k=100, filter="document_title eq 'Report.pdf'", select_fields="content_text,document_title,content_path,locationMetadata"
   → Check totalCount. If <= 300: paginate to read all (skip=100, skip=200).
   → If > 300: sample middle (skip=totalCount/2, top_k=100) and end (skip=totalCount-100, top_k=100). Max 4 calls total.
