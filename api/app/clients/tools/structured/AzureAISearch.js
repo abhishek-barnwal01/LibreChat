@@ -68,23 +68,12 @@ PARAMETERS:
 - facets: Array of facetable fields ["document_title", "text_document_id", "file_category_ai", "content_path", etc.]
 - skip: Number of results to skip for pagination (default: 0)
 - selectFields: Comma-separated fields to return (e.g., "document_title,text_document_id")
+  IMPORTANT: When you need to READ/ANALYZE the actual page content, you MUST include "content_text" and "content_embedding" in selectFields (e.g., "content_text,content_embedding,document_title,content_path,locationMetadata/pageNumber").
+  If you omit "content_text", you will only get metadata (titles, paths, page numbers) but NOT the actual text content of the document.
+  - For LISTING documents: selectFields: "document_title,content_path" (no content_text needed)
 
 EXACT CATEGORY VALUES (file_category_ai) - Use these EXACT strings (case-sensitive):
-- "Analysis" (capital 'A')
-- "Annual presentation" (lowercase 'p')
-- "Brand equity" (lowercase 'e')
-- "Brand Health track" (lowercase 't')
-- "Concept testing" (lowercase 't')
-- "Home panel" (lowercase 'p')
-- "Link testing" (lowercase 't')
-- "Media Optimization" (capital 'O')
-- "Miscellaneous" (capital 'M')
-- "Needscope" (capital 'N')
-- "Post Launch Evaluation" (capital 'P', 'L', 'E')
-- "Product acceptance testing" (lowercase 'a' and 't')
-- "Product Performance Evaluation" (capital 'P', 'P', 'E')
-- "Retail audit" (lowercase 'a')
-- "Usage/Attitude (U&A)" (capital 'U' and 'A')
+"Analysis", "Annual presentation", "Brand equity", "Brand Health track", "Concept testing", "Home panel", "Link testing", "Media Optimization", "Miscellaneous", "Needscope", "Post Launch Evaluation", "Product acceptance testing", "Product Performance Evaluation", "Retail audit", "Usage/Attitude (U&A)"
 
 CRITICAL FILTER RULES:
 1. Filters are CASE-SENSITIVE! Always use exact values above.
@@ -120,7 +109,13 @@ EXAMPLES:
 ✓ List brand equity reports with links:
   { query: "*", filter: "file_category_ai eq 'Brand equity' and text_document_id ne ''", facets: ["document_title,count:1000"], selectFields: "document_title,content_path" }
 
-✓ Content search: { query: "Godrej growth 2022" } - NO facets
+✓ Content search: { query: "Godrej growth 2022" } - NO facets (returns all fields including content_text)
+
+✓ Content search with selectFields: { query: "Godrej growth 2022", selectFields: "content_text,content_embedding,document_title,content_path,locationMetadata/pageNumber" }
+  → MUST include "content_text" to get actual text content
+
+✗ Wrong (missing content text): { query: "recommend", filter: "document_title eq 'Report.pdf'", selectFields: "document_title,content_path,content_embedding,locationMetadata/pageNumber" }
+  → Returns page numbers but NO text content - cannot analyze what the page says!
 
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
 
@@ -143,7 +138,7 @@ EXAMPLES:
       filter: z.string().optional().describe('OData filter expression (e.g., "file_category_ai eq \'U&A\'"'),
       facets: z.array(z.string()).optional().describe('Array of facetable field names to get counts/aggregations'),
       skip: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
-      selectFields: z.string().optional().describe('Comma-separated fields to return (e.g., "document_title,text_document_id") - CRITICAL for reducing tokens when listing documents'),
+      selectFields: z.string().optional().describe('Comma-separated fields to return. MUST include "content_text" and "content_embedding" when reading content (e.g., "content_text,,document_title,content_path,locationMetadata/pageNumber"). Omit "content_text" and "content_embedding" only for listing/counting queries.'),
     });
 
     // Initialize properties using helper function
