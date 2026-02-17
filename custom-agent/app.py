@@ -1,13 +1,13 @@
 """Flask API with LangGraph + Postgres persistence"""
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from graph import build_graph
+import threading
 import uuid
 import time
 import json
 import os
-from flask import Flask, request, jsonify, Response, stream_with_context
 
 app = Flask(__name__)
 
@@ -298,31 +298,69 @@ def generate_stream(user_query, langchain_messages, user_id, session_id, model):
     """
     Streams the response with tool call markers for LibreChat's frontend.
 
+    Runs graph.invoke() in a background thread so the generator can detect
+    client disconnects (stop button / chat switch) via SSE heartbeats.
+    When the client disconnects, the generator exits and the daemon thread
+    finishes in the background without sending further data.
+
     Flow:
-    1. Send role: "assistant" (required for markdown rendering)
-    2. Extract tool calls from graph result messages → send as <!-- TOOL_CALL --> / <!-- TOOL_RESULT --> markers
-    3. Stream the final formatted text
-    4. LibreChat's OpenAIClient.js intercepts markers and emits on_run_step SSE events
+    1. Run graph in background thread
+    2. Send heartbeats while waiting (detects client disconnect)
+    3. Send role: "assistant" (required for markdown rendering)
+    4. Extract tool calls → send as <!-- TOOL_CALL --> / <!-- TOOL_RESULT --> markers
+    5. Stream the final formatted text
     """
+    result_container = {}
+    error_container = {}
+    done_event = threading.Event()
+
+    def run_graph():
+        try:
+            result_container['result'] = graph.invoke(
+                {
+                    "user_query": user_query,
+                    "messages": langchain_messages,
+                    "user_id": user_id,
+                },
+                config={"configurable": {"thread_id": session_id}},
+            )
+        except Exception as e:
+            error_container['error'] = e
+        finally:
+            done_event.set()
+
+    thread = threading.Thread(target=run_graph, daemon=True)
+    thread.start()
+
+    chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+    created_time = int(time.time())
+
+    # Wait for graph completion, sending SSE comments as heartbeats.
+    # If client disconnects, the yield raises GeneratorExit (or the
+    # WSGI server closes the generator), stopping this function.
+    while not done_event.wait(timeout=2.0):
+        # SSE comment line — invisible to the client but keeps the
+        # connection alive and lets the server detect a broken pipe.
+        yield ": heartbeat\n\n"
+
+    if 'error' in error_container:
+        import traceback
+        traceback.print_exc()
+
+        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, role='assistant'))}\n\n"
+        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=f'\\n\\n Error: {str(error_container[\"error\"])}', finish_reason='stop'))}\n\n"
+        yield "data: [DONE]\n\n"
+        return
+
+    result = result_container['result']
+
     try:
-        result = graph.invoke(
-            {
-                "user_query": user_query,
-                "messages": langchain_messages,
-                "user_id": user_id,
-            },
-            config={"configurable": {"thread_id": session_id}},
-        )
-
-        chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
-        created_time = int(time.time())
-
         # 1. Send role first (critical for markdown rendering)
         yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, role='assistant'))}\n\n"
 
         # 2. Extract tool calls from messages and send as markers
         messages = result.get("messages", [])
-        tool_call_map = {}  # track id → {name, args} for pairing with results
+        tool_call_map = {}  # track id -> {name, args} for pairing with results
         step_index = 0
 
         for msg in messages:
@@ -365,16 +403,9 @@ def generate_stream(user_query, langchain_messages, user_id, session_id, model):
         yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, finish_reason='stop'))}\n\n"
         yield "data: [DONE]\n\n"
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-
-        chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
-        created_time = int(time.time())
-
-        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, role='assistant'))}\n\n"
-        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=f'\\n\\n❌ Error: {str(e)}', finish_reason='stop'))}\n\n"
-        yield "data: [DONE]\n\n"
+    except GeneratorExit:
+        print(f"[generate_stream] Client disconnected during response for session {session_id}")
+        return
 
 # ---------- Search Tool Endpoint (for LibreChat Agent OpenAPI Action) ----------
 @app.route("/v1/tools/search", methods=["POST"])
