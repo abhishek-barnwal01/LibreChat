@@ -18,8 +18,16 @@ const getFolderName = (fullPath: string): string => {
   return '';
 };
 
+/** Custom display labels for specific metadata keys */
+const FILTER_LABEL_OVERRIDES: Record<string, string> = {
+  brand_det: 'Brand',
+};
+
 /** Convert metadata key like "file_category_ai" to "File Category AI" */
 const formatFilterLabel = (key: string): string => {
+  if (FILTER_LABEL_OVERRIDES[key]) {
+    return FILTER_LABEL_OVERRIDES[key];
+  }
   return key
     .split('_')
     .map((word) => (word.toLowerCase() === 'ai' ? 'AI' : word.charAt(0).toUpperCase() + word.slice(1)))
