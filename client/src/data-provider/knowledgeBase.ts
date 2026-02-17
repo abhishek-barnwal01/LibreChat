@@ -8,6 +8,7 @@ export interface BlobDocument {
   lastModified: string;
   contentLength: string;
   contentType: string;
+  metadata: Record<string, string>;
 }
 
 export interface BlobListResponse {
@@ -15,44 +16,10 @@ export interface BlobListResponse {
   totalCount: number;
 }
 
-const parseBlobXmlResponse = (xmlText: string): BlobListResponse => {
-  const parser = new DOMParser();
-  const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-
-  const blobs = xmlDoc.getElementsByTagName('Blob');
-  const documents: BlobDocument[] = [];
-
-  for (let i = 0; i < blobs.length; i++) {
-    const blob = blobs[i];
-    const name = blob.getElementsByTagName('Name')[0]?.textContent || '';
-    const properties = blob.getElementsByTagName('Properties')[0];
-
-    if (properties) {
-      const creationTime = properties.getElementsByTagName('Creation-Time')[0]?.textContent || '';
-      const lastModified = properties.getElementsByTagName('Last-Modified')[0]?.textContent || '';
-      const contentLength = properties.getElementsByTagName('Content-Length')[0]?.textContent || '';
-      const contentType = properties.getElementsByTagName('Content-Type')[0]?.textContent || '';
-
-      documents.push({
-        name,
-        creationTime,
-        lastModified,
-        contentLength,
-        contentType,
-      });
-    }
-  }
-
-  return {
-    documents,
-    totalCount: documents.length,
-  };
-};
-
 export const getBlobList = async (): Promise<BlobListResponse> => {
   try {
-    const xmlText = await request.get<string>('/api/knowledge-base/blobs');
-    return parseBlobXmlResponse(xmlText);
+    const response = await request.get('/api/knowledge-base/blobs');
+    return response as BlobListResponse;
   } catch (error) {
     console.error('Error fetching blob list:', error);
     throw error;
