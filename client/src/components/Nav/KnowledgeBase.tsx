@@ -41,6 +41,15 @@ const formatFolderName = (folder: string): string => {
   return folder.replace(/_/g, ' ');
 };
 
+/** Metadata keys to exclude from filter dropdowns */
+const EXCLUDED_FILTER_KEYS = new Set(['file_path', 'document_id', 'source_system']);
+
+/** Check if a metadata value should be excluded from filter options */
+const isExcludedValue = (value: string): boolean => {
+  const lower = value.toLowerCase().trim();
+  return lower === '' || lower === 'na' || lower === 'n/a' || lower === 'null';
+};
+
 /* ------------------------------------------------------------------ */
 /*  FilterDropdown – a multi-select dropdown for a single metadata key */
 /* ------------------------------------------------------------------ */
@@ -151,37 +160,81 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
 
-  // Derive available filter options (metadata keys → unique sorted values)
-  const filterOptions = useMemo(() => {
+  // Static list of valid filter keys (computed once from all documents)
+  const allFilterKeys = useMemo(() => {
     if (!data?.documents) {
-      return {};
+      return [];
     }
-    const options: Record<string, Set<string>> = {};
+    const keyCounts: Record<string, Set<string>> = {};
     data.documents.forEach((doc) => {
       if (!doc.metadata) {
         return;
       }
       Object.entries(doc.metadata).forEach(([key, value]) => {
-        if (!value || !value.trim()) {
+        if (EXCLUDED_FILTER_KEYS.has(key)) {
           return;
         }
-        if (!options[key]) {
-          options[key] = new Set();
+        if (!value || isExcludedValue(value)) {
+          return;
         }
-        options[key].add(value.trim());
+        if (!keyCounts[key]) {
+          keyCounts[key] = new Set();
+        }
+        keyCounts[key].add(value.trim());
       });
     });
     // Only include keys with at least 2 distinct values (useful for filtering)
-    const result: Record<string, string[]> = {};
-    Object.entries(options).forEach(([key, values]) => {
-      if (values.size >= 2) {
-        result[key] = Array.from(values).sort((a, b) => a.localeCompare(b));
-      }
-    });
-    return result;
+    return Object.entries(keyCounts)
+      .filter(([, values]) => values.size >= 2)
+      .map(([key]) => key)
+      .sort();
   }, [data?.documents]);
 
-  const filterKeys = useMemo(() => Object.keys(filterOptions).sort(), [filterOptions]);
+  // Interlinked filter options: for each key, compute available values from
+  // documents that match ALL OTHER active filters (Excel-style cascading)
+  const filterOptions = useMemo(() => {
+    if (!data?.documents || allFilterKeys.length === 0) {
+      return {};
+    }
+
+    const result: Record<string, string[]> = {};
+
+    for (const key of allFilterKeys) {
+      // Start with all documents, then apply every active filter EXCEPT this key
+      let docs = data.documents;
+
+      // Apply search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        docs = docs.filter((doc) => getDisplayName(doc.name).toLowerCase().includes(query));
+      }
+
+      // Apply all active metadata filters except the current key
+      Object.entries(activeFilters).forEach(([filterKey, values]) => {
+        if (filterKey !== key && values.length > 0) {
+          docs = docs.filter((doc) => {
+            const docValue = doc.metadata?.[filterKey];
+            return docValue != null && values.includes(docValue.trim());
+          });
+        }
+      });
+
+      // Collect unique valid values from the remaining documents
+      const values = new Set<string>();
+      docs.forEach((doc) => {
+        const value = doc.metadata?.[key];
+        if (value && !isExcludedValue(value)) {
+          values.add(value.trim());
+        }
+      });
+
+      if (values.size >= 1) {
+        result[key] = Array.from(values).sort((a, b) => a.localeCompare(b));
+      }
+    }
+
+    return result;
+  }, [data?.documents, allFilterKeys, activeFilters, searchQuery]);
 
   // Combined filtering: search query + metadata filters
   const filteredDocuments = useMemo(() => {
@@ -311,18 +364,18 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
         )}
 
         {/* Metadata Filter Bar */}
-        {data && !isLoading && !error && filterKeys.length > 0 && (
+        {data && !isLoading && !error && allFilterKeys.length > 0 && (
           <div className="flex-shrink-0 border-b border-border-light px-6 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1.5 text-xs font-medium text-text-secondary">
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 <span>Filters:</span>
               </div>
-              {filterKeys.map((key) => (
+              {allFilterKeys.map((key) => (
                 <FilterDropdown
                   key={key}
                   label={formatFilterLabel(key)}
-                  options={filterOptions[key]}
+                  options={filterOptions[key] || []}
                   selected={activeFilters[key] || []}
                   onChange={(values) => handleFilterChange(key, values)}
                 />
