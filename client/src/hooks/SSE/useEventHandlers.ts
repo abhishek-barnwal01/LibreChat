@@ -11,7 +11,6 @@ import {
   tPresetSchema,
   tMessageSchema,
   tConvoUpdateSchema,
-  isAgentsEndpoint,
   isAssistantsEndpoint,
 } from 'librechat-data-provider';
 import type {
@@ -717,27 +716,6 @@ export default function useEventHandlers({
       const { endpoint: _endpoint, endpointType } =
         (submission.conversation as TConversation | null) ?? {};
       const endpoint = endpointType ?? _endpoint;
-
-      const sendAgentAbortRequest = () => {
-        const abortEndpoint = EndpointURLs[endpoint ?? ''];
-        if (!abortEndpoint) {
-          return;
-        }
-        fetch(`${abortEndpoint}/abort`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            abortKey: runAbortKey,
-            endpoint,
-          }),
-        }).catch((error) => {
-          logger.log('conversation', 'Failed to abort agent request: ' + String(error));
-        });
-      };
-
       if (
         !isAssistantsEndpoint(endpoint) &&
         messages?.[messages.length - 1] != null &&
@@ -764,9 +742,6 @@ export default function useEventHandlers({
           },
           submission,
         );
-        if (isAgentsEndpoint(endpoint)) {
-          sendAgentAbortRequest();
-        }
         return;
       } else if (!isAssistantsEndpoint(endpoint)) {
         const convoId = conversationId || `_${v4()}`;
@@ -778,9 +753,6 @@ export default function useEventHandlers({
           });
         }
         setIsSubmitting(false);
-        if (isAgentsEndpoint(endpoint)) {
-          sendAgentAbortRequest();
-        }
         return;
       }
 
