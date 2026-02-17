@@ -1,13 +1,13 @@
 """Flask API with LangGraph + Postgres persistence"""
 
-from flask import Flask, request, jsonify, Response, stream_with_context
+from flask import Flask, request, jsonify
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from graph import build_graph
-import threading
 import uuid
 import time
 import json
 import os
+from flask import Flask, request, jsonify, Response, stream_with_context
 
 app = Flask(__name__)
 
@@ -278,197 +278,130 @@ def append_sas_to_blob_urls(markdown_text: str) -> str:
     return blob_pattern.sub(add_sas, markdown_text)
 
 # ---------- Streaming generator for LibreChat ----------
-def _make_chunk(chunk_id, created_time, model, content=None, role=None, finish_reason=None):
-    """Helper to build an OpenAI SSE chunk."""
-    delta = {}
-    if role:
-        delta["role"] = role
-    if content is not None:
-        delta["content"] = content
-    return {
-        "id": chunk_id,
-        "object": "chat.completion.chunk",
-        "created": created_time,
-        "model": model,
-        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
-    }
-
-
-class CancelledError(Exception):
-    """Raised inside graph nodes when the client disconnects."""
-    pass
-
-
-def check_cancelled(config):
-    """Call at the top of every node to bail out early on cancellation."""
-    cancel_event = config.get("configurable", {}).get("cancel_event")
-    if cancel_event is not None and cancel_event.is_set():
-        raise CancelledError("Client disconnected")
-
-
 def generate_stream(user_query, langchain_messages, user_id, session_id, model):
     """
-    Streams the response with tool call markers for LibreChat's frontend.
-
-    Runs graph.invoke() in a background thread so the generator can detect
-    client disconnects (stop button / chat switch) via SSE heartbeats.
-    When the client disconnects, cancel_event is set, which causes the
-    currently executing node to raise CancelledError and stop the graph.
-
-    Flow:
-    1. Run graph in background thread with cancel_event in config
-    2. Send heartbeats while waiting (detects client disconnect)
-    3. On disconnect -> set cancel_event -> graph nodes bail out
-    4. On success -> stream role, tool call markers, and final text
+    Streams the response with proper OpenAI SSE format for LibreChat markdown rendering.
+    
+    KEY FIXES:
+    1. Send role: "assistant" in first chunk (critical for markdown rendering)
+    2. Stream entire response at once (preserves markdown formatting)
     """
-    result_container = {}
-    error_container = {}
-    done_event = threading.Event()
-    cancel_event = threading.Event()
-
-    def run_graph():
-        try:
-            result_container['result'] = graph.invoke(
-                {
-                    "user_query": user_query,
-                    "messages": langchain_messages,
-                    "user_id": user_id,
-                },
-                config={
-                    "configurable": {
-                        "thread_id": session_id,
-                        "cancel_event": cancel_event,
-                    }
-                },
-            )
-        except CancelledError:
-            print(f"[run_graph] Graph cancelled for session {session_id}")
-        except Exception as e:
-            if not cancel_event.is_set():
-                error_container['error'] = e
-        finally:
-            done_event.set()
-
-    thread = threading.Thread(target=run_graph, daemon=True)
-    thread.start()
-
-    chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
-    created_time = int(time.time())
-
-    # Wait for graph completion, sending SSE comments as heartbeats.
-    # If client disconnects, the yield raises GeneratorExit (or the
-    # WSGI server closes the generator), stopping this function.
     try:
-        while not done_event.wait(timeout=2.0):
-            yield ": heartbeat\n\n"
-    except GeneratorExit:
-        print(f"[generate_stream] Client disconnected for session {session_id}, cancelling graph")
-        cancel_event.set()
-        return
+        result = graph.invoke(
+            {
+                "user_query": user_query,
+                "messages": langchain_messages,
+                "user_id": user_id
+            },
+            config={"configurable": {"thread_id": session_id}}
+        )
 
-    if cancel_event.is_set():
-        return
+        # Debug: print what we got back
+        print(f"\n🔍 DEBUG generate_stream result keys: {list(result.keys())}")
+        print(f"📌 clarification_message: {result.get('clarification_message')}")
+        print(f"📌 semantic_chitchat: {result.get('semantic_chitchat')}")
 
-    if 'error' in error_container:
-        import traceback
-        traceback.print_exc()
-
-        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, role='assistant'))}\n\n"
-        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=f'\\n\\n Error: {str(error_container[\"error\"])}', finish_reason='stop'))}\n\n"
-        yield "data: [DONE]\n\n"
-        return
-
-    result = result_container['result']
-
-    try:
-        # 1. Send role first (critical for markdown rendering)
-        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, role='assistant'))}\n\n"
-
-        # 2. Extract tool calls from messages and send as markers
-        messages = result.get("messages", [])
-        tool_call_map = {}  # track id -> {name, args} for pairing with results
-        step_index = 0
-
-        for msg in messages:
-            # AI message with tool_calls
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    tc_id = tc.get("id", f"call_{uuid.uuid4().hex[:8]}")
-                    tc_name = tc.get("name", "unknown")
-                    tc_args = tc.get("args", {})
-                    tool_call_map[tc_id] = {"name": tc_name, "args": tc_args, "step_index": step_index}
-
-                    marker = f'<!-- TOOL_CALL:{json.dumps({"id": tc_id, "name": tc_name, "args": tc_args, "step_index": step_index})} -->'
-                    yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=marker))}\n\n"
-                    step_index += 1
-
-            # ToolMessage with result
-            elif hasattr(msg, "tool_call_id") and msg.tool_call_id:
-                tc_id = msg.tool_call_id
-                tc_info = tool_call_map.get(tc_id, {})
-                output = (msg.content or "")[:2000]
-                if len(msg.content or "") > 2000:
-                    output += "...(truncated)"
-
-                marker = f'<!-- TOOL_RESULT:{json.dumps({"id": tc_id, "name": tc_info.get("name", ""), "args": json.dumps(tc_info.get("args", {})), "output": output, "step_index": tc_info.get("step_index", 0)})} -->'
-                yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=marker))}\n\n"
-
-        # 3. Stream final text response
+        # Handle clarification if needed
         clarification_msg = result.get("clarification_message")
         if clarification_msg:
+            print(f"✅ Clarification detected, returning: {clarification_msg[:100]}...")
             final_response = clarification_msg
         else:
+            print(f"📄 No clarification, using formatted response")
             final_response = result.get("formatted", {}).get("formatted_response", "")
             final_response = append_sas_to_blob_urls(final_response)
+            if not final_response:
+                print(f"⚠️ No formatted response, result keys: {result.keys()}")
 
-        # Send text in one chunk (preserves markdown formatting)
-        if final_response:
-            yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, content=final_response))}\n\n"
+        chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+        created_time = int(time.time())
 
-        # 4. Done
-        yield f"data: {json.dumps(_make_chunk(chunk_id, created_time, model, finish_reason='stop'))}\n\n"
+        # ==================== FIX 1: Send role first ====================
+        # CRITICAL: LibreChat needs this to know it's an assistant message
+        # Without this, it treats the message as plain text instead of markdown
+        role_chunk = {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": created_time,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant"},
+                    "finish_reason": None
+                }
+            ]
+        }
+        yield f"data: {json.dumps(role_chunk)}\n\n"
+
+        # ==================== FIX 2: Stream entire response at once ====================
+        # Streaming word-by-word breaks markdown syntax:
+        # "**Bold text**" split into ["**Bold", "text**"] renders incorrectly
+        # Solution: Send the complete markdown in one chunk
+        content_chunk = {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": created_time,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"content": final_response},
+                    "finish_reason": None
+                }
+            ]
+        }
+        yield f"data: {json.dumps(content_chunk)}\n\n"
+
+        # Final chunk to indicate completion
+        final_chunk = {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": created_time,
+            "model": model,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+        }
+        yield f"data: {json.dumps(final_chunk)}\n\n"
         yield "data: [DONE]\n\n"
 
-    except GeneratorExit:
-        print(f"[generate_stream] Client disconnected during response for session {session_id}")
-        cancel_event.set()
-        return
-
-# ---------- Search Tool Endpoint (for LibreChat Agent OpenAPI Action) ----------
-@app.route("/v1/tools/search", methods=["POST"])
-def tool_search():
-    """
-    Exposes azure_ai_search as a REST endpoint for LibreChat Agent OpenAPI Actions.
-    This allows a LibreChat Agent to call this tool natively with tool call UI.
-    """
-    from tools import azure_ai_search
-
-    data = request.json or {}
-
-    query = data.get("query", "*")
-    index_type = data.get("index_type", "main_data")
-    top_k = data.get("top_k", 10)
-    filter_str = data.get("filter", None)
-    facets = data.get("facets", None)
-    skip = data.get("skip", None)
-    select_fields = data.get("select_fields", None)
-
-    try:
-        result = azure_ai_search.invoke({
-            "query": query,
-            "index_type": index_type,
-            "top_k": top_k,
-            "filter": filter_str,
-            "facets": facets,
-            "skip": skip,
-            "select_fields": select_fields,
-        })
-        return Response(result, mimetype="application/json")
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
+        
+        chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+        
+        # Send role first even in error case
+        role_chunk = {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant"},
+                    "finish_reason": None
+                }
+            ]
+        }
+        yield f"data: {json.dumps(role_chunk)}\n\n"
+        
+        # Then send error message
+        error_chunk = {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"content": f"\n\n❌ Error: {str(e)}"},
+                    "finish_reason": "stop"
+                }
+            ]
+        }
+        yield f"data: {json.dumps(error_chunk)}\n\n"
+        yield "data: [DONE]\n\n"
 
 # ---------- Run Flask ----------
 if __name__ == "__main__":
@@ -476,7 +409,5 @@ if __name__ == "__main__":
     print("💡 POST → http://localhost:5001/chat")
     print('   {"question": "your question", "session_id": "user123"}')
     print("\n💡 POST → http://localhost:5001/v1/chat/completions (LibreChat)")
-    print('   OpenAI-compatible endpoint')
-    print("\n💡 POST → http://localhost:5001/v1/tools/search (Agent Tool)")
-    print('   OpenAPI Action endpoint for LibreChat Agents\n')
+    print('   OpenAI-compatible endpoint\n')
     app.run(debug=False, port=5001, host='0.0.0.0')
