@@ -304,11 +304,11 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
         # CRITICAL: Send role first — LibreChat needs this for markdown rendering
         yield make_chunk({"role": "assistant"})
 
-        # Node progress labels
+        # Node progress labels — displayed inline on ONE line with → separators
         NODE_PROGRESS = {
-            "semantic": "🧠 Analyzing your query...",
-            "clarification": "🔍 Resolving context...",
-            "rag": "📚 Searching and retrieving documents...",
+            "semantic": "Analyzing",
+            "clarification": "Resolving",
+            "rag": "Searching",
         }
 
         input_data = {
@@ -329,6 +329,9 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
             asyncio.to_thread(graph_streaming.invoke, input_data, config)
         )
 
+        # Build progress on a SINGLE line: ⏳ Analyzing → Searching → ...
+        progress_sent = False  # True once we've started the progress line
+
         # Poll the progress queue while the graph is running
         while not graph_task.done():
             try:
@@ -337,7 +340,11 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
                     label = NODE_PROGRESS.get(node_name)
                     if label:
                         print(f"📡 STREAMING: Node '{node_name}' started")
-                        yield make_chunk({"content": f"*{label}*\n"})
+                        if not progress_sent:
+                            yield make_chunk({"content": f"⏳ {label}"})
+                            progress_sent = True
+                        else:
+                            yield make_chunk({"content": f" → {label}"})
             except queue_module.Empty:
                 pass
             await asyncio.sleep(0.1)
@@ -349,7 +356,11 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
                 if event_type == "start":
                     label = NODE_PROGRESS.get(node_name)
                     if label:
-                        yield make_chunk({"content": f"*{label}*\n"})
+                        if not progress_sent:
+                            yield make_chunk({"content": f"⏳ {label}"})
+                            progress_sent = True
+                        else:
+                            yield make_chunk({"content": f" → {label}"})
             except queue_module.Empty:
                 break
 
@@ -382,7 +393,7 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
         elif clarification_msg and not awaiting and not rag_output:
             # Direct answer from history — format with token streaming
             answer = append_sas_to_blob_urls(clarification_msg)
-            yield make_chunk({"content": "*✨ Formatting response...*\n\n"})
+            yield make_chunk({"content": " → Formatting...\n\n"})
             print("📡 STREAMING: Formatter token streaming started (direct answer)")
             async for token in stream_formatter_llm(user_query, answer, 1.0):
                 yield make_chunk({"content": token})
@@ -395,7 +406,7 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
                 else ""
             )
             rag_answer = append_sas_to_blob_urls(rag_answer)
-            yield make_chunk({"content": "*✨ Formatting response...*\n\n"})
+            yield make_chunk({"content": " → Formatting...\n\n"})
             print("📡 STREAMING: Formatter token streaming started (RAG answer)")
             async for token in stream_formatter_llm(user_query, rag_answer, 0.8):
                 yield make_chunk({"content": token})
