@@ -427,10 +427,11 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     → Put FULL ANSWER in reasoning field
     → Start with: "Based on our previous discussion..." or "As I mentioned..."
 
-    IMPORTANT EXCEPTION (Content Analysis Requests):
-    → If the follow-up asks to READ/SUMMARIZE/DIAGNOSE OBSERVATIONS/INSIGHTS from known documents (e.g., "what are the observations", "summarize", "what does X say", "find insights", "diagnostics")
-    → DO NOT answer directly from history unless the full content was already summarized earlier.
-    → INSTEAD: Provide a concise enriched_query for RAG to retrieve and analyze those documents.
+    ABSOLUTE EXCEPTION — NEVER answer from history for these requests:
+    → If user query contains ANY of: "summarize", "summary", "what does X say", "what is in", "observations", "insights from", "diagnostics", "read X", "tell me about X report"
+    → ALWAYS set enriched_query to a non-empty RAG search string.
+    → NEVER set enriched_query = "" for summarization requests, even if the document was mentioned in history.
+    → Reason: history only contains document titles/links, NOT the full document content. Fresh RAG retrieval is mandatory to produce a real summary.
 
     ELSE (needs new retrieval):
     → Set enriched_query = "brief, clear version for RAG search"

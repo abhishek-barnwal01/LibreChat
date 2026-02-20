@@ -213,6 +213,7 @@ BEFORE searching, check if answer already exists:
 
 SKIP SEARCH IF: query identical to last few messages | answer in recent history | follow-up on same docs/topic
 DO SEARCH IF: different topic/entity | no relevant history | user asks for "updated" info
+NEVER SKIP FOR: any query containing "summarize", "summary", "what does X say", "what is in", "observations", "insights from" — these ALWAYS require fresh retrieval via get_summarization_schema + azure_ai_search.
 
 IF SKIPPING:
   → Start: "Based on our previous discussion..." or "As I just mentioned..."
@@ -254,6 +255,15 @@ CRITICAL RULES:
 
 RETRIEVAL STRATEGY — Pick the right approach for each query type:
 
+0. SUMMARIZATION PRE-CHECK (MUST RUN FIRST, BEFORE ANY OTHER STEP):
+   → If the user query contains "summarize", "summary", "what does X say", "what is in", "tell me about X report", "overview of", or similar intent to read a document:
+   → Step A: Call get_summarization_schema(file_category_ai) FIRST.
+     - Identify file_category_ai from the query context or memory (e.g., "Link Test", "U&A", "Concept Test", "Dipstick").
+     - If unsure, call azure_ai_search with selectFields="file_category_ai,document_title" and filter by document name to discover the category, then call get_summarization_schema.
+   → Step B: Only AFTER receiving the schema, call azure_ai_search to retrieve content chunks.
+   → DO NOT proceed to azure_ai_search before completing Step A.
+   → DO NOT skip this step even if document content appears in chat history — history contains titles/links only, not full content.
+
 1. LISTING/COUNTING ("List all X", "How many X"):
    → Use facets in ONE call. Never loop per document.
    → Include ALL documents from facets in your response — do NOT filter or subset them.
@@ -273,9 +283,10 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
    → Use filter with locationMetadata/pageNumber.
 
 4. SUMMARIZATION ("Summarize document X", "Summarize these documents", "Summarize observations in document X", "Summarize section in X"):
-   → ALWAYS treat summarization as a NEW structured task.
-   → Identify file category(file_category_ai) from user query or memory (use azure_ai_search with selectFields to find it when unknown).
-   → MANDATORY: Call get_summarization_schema(file_category_ai) to get slots + section_hints; use them to target retrieval.
+   → See STEP 0 above — get_summarization_schema MUST be called first. This is enforced in step 0.
+   → ALWAYS treat summarization as a NEW structured task; never serve from history.
+   → Identify file_category_ai from user query or memory; call azure_ai_search with selectFields="file_category_ai,document_title" if unknown.
+   → MANDATORY: get_summarization_schema(file_category_ai) must be called before azure_ai_search for content.
    → Retrieve chunks with filter + selectFields as above; paginate top_k=100.
    → Compose a business report style answer using the slots and section_hints:
         - For each section, write in a business report style. Avoid single-line slot responses.
