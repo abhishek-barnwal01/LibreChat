@@ -741,8 +741,11 @@ Example:
         prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a semantic enrichment agent. Your job: turn a broad/exploratory query into a precise, RAG-ready enriched_query.
 {clarification_context}
+Previously retrieved documents (from memory):
+{memories_text}
+
 STEP 1 — CHECK HISTORY FIRST
-Read the conversation history below. If it already provides enough context to resolve the query (specific entities, brands, time period, geography are known), skip the tool and produce enriched_query directly.
+Read the conversation history and previously retrieved documents above. If they already provide enough context to resolve the query (specific entities, brands, time period, geography are known), skip the tool and produce enriched_query directly.
 
 STEP 2 — SEARCH (only if history is insufficient)
 Call azure_ai_search on the semantic index to discover what entities exist.
@@ -765,6 +768,7 @@ OUTPUT — valid JSON matching the SemanticOutput schema:
         # Format initial messages with history
         initial_messages = prompt.format_messages(
             clarification_context=clarification_context,
+            memories_text=memories_text,
             messages=chat_history,
             user_query=user_query,
         )
