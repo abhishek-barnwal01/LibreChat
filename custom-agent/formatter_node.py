@@ -97,23 +97,23 @@ def formatter_node(state: PipelineState) -> Dict[str, Any]:
 
 Your mission: Transform the RAG answer into a PRODUCTION-GRADE, beautifully formatted response using MARKDOWN.
 
-==================================================
+---
 USER'S QUESTION
-==================================================
+---
 {user_query}
 
-==================================================
+---
 RAG'S RAW ANSWER (Unformatted)
-==================================================
+---
 {rag_final_answer}
 
-==================================================
+---
 CONFIDENCE SCORE: {confidence:.2f} / 1.00
-==================================================
+---
 
-==================================================
+---
 FORMATTING INSTRUCTIONS
-==================================================
+---
 
 Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these guidelines:
 
@@ -122,6 +122,10 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
    - Use clear section headers with ### for different topics
    - Separate distinct concepts into logical sections
    - Add blank lines between sections for readability
+   → For REPORT SUMMARIES: Render a clean business style report using the same schema.
+    - The RAW answer already uses a business report structure, do NOT prepend a one-line answer; preserve the existing sections, headings, tables, bullets, and citations.
+    - Avoid single-line slot responses in reports; write multi-sentence paragraphs within each section.
+    - Include quantitative tables where applicable (e.g., metrics vs norms).
 
 2. KEY INFORMATION FORMATTING
    - Use **bold** for important numbers, metrics, and key findings
@@ -159,9 +163,9 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
    - Make it scannable - readers should quickly find what they need
 
 6. CONFIDENCE DISCLAIMERS
-   - If confidence < 0.85: Add a note at the top or bottom
+   - If confidence < 0.65: Add a note at the bottom
    - Format: > Note: This answer has moderate confidence. Please verify critical details from the original sources.
-   - If confidence < 0.65: Be more explicit about uncertainty
+   - If confidence < 0.35: Be more explicit about uncertainty
    - Format: > Disclaimer: The confidence in this answer is low. Please review the source documents for accurate information.
 
 7. CONVERSATIONAL TONE
@@ -306,6 +310,8 @@ FORMAT THE PROVIDED ANSWER
 ==================================================
 
 Provide your formatted response as markdown directly. Output pure markdown format without wrapping in JSON or code blocks.
+Do NOT include any preface like "Here's the polished..." or "Formatted response:". Begin directly with the content.
+Avoid meta commentary such as "Below is" or "Here is".
 
 Your response should include:
 - Use markdown formatting extensively (headers, bold, italic, tables, code blocks, mermaid diagrams)
