@@ -307,6 +307,20 @@ Search Strategy Guidelines:
 - For broad exploratory search: use general terms
 - For targeted retrieval: use focused terms after identifying relevant sources
 
+STEP 2.5: APPLY DEFAULT FILTERS (MANDATORY when not overridden by the user)
+
+GEOGRAPHY DEFAULT — Unless the enriched_query explicitly names another country or region,
+ALWAYS add to your filter:  and country_ai eq 'India'
+Example:  filter="file_category_ai eq 'Brand equity' and text_document_id ne '' and country_ai eq 'India'"
+If the user explicitly asks for another country (e.g. "Indonesia", "global"), use that instead.
+
+TIME PERIOD DEFAULT — If the enriched_query contains "latest", "most recent", or no year at all:
+  1. First search WITHOUT a time-period filter; check the `file_time_period_ai` values in results.
+  2. Identify the most recent period present (2026 > 2025 > 2024 > 2023 > 2022 > older).
+  3. If multiple periods are returned and the user wanted "latest", focus your answer on the
+     documents from the most recent period and note which period that is.
+  4. Do NOT fabricate a time period — only use values that appear in the retrieved documents.
+
 CRITICAL: selectFields USAGE
 - When LISTING documents (names, links, counts): use selectFields: "document_title,content_path"
 - When READING/ANALYZING content: ALWAYS include "content_text"in selectFields (e.g., "document_title,content_path,locationMetadata/pageNumber,content_text")
