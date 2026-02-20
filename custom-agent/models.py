@@ -50,8 +50,8 @@ class RetrievedDoc(BaseModel):
 
     filename: str
     content_path: str
-    score: float
-    pages: str
+    score: Optional[float] = None  # may be absent for listing queries
+    pages: Optional[str] = None    # may be absent for listing queries
     description: str
 
 
