@@ -317,29 +317,18 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
         
         # Agentic enrichment with chat history
         enrichment_prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a query enrichment agent.
+            ("system", """You are a query enrichment agent for general knowledge questions.
 
-    The user asked a general knowledge question that doesn't require searching company documents.
+Produce a self-contained, standalone version of the user's query.
 
-    Your job:
-    1. Rephrase the query to be clear and specific
-    2. Add any helpful context from chat history if available
-    3. Do NOT search for domain entities
+RULES:
+1. Resolve references — substitute pronouns ("it", "that", "the same") using prior context.
+2. Carry forward topic — if the user narrows or pivots on a prior topic, preserve the base topic.
+3. Keep enriched_query concise; add only what is needed to remove ambiguity.
 
-    Return JSON with:
-    {{
-    "enriched_query": "clear, specific version of the query",
-    "domain_context": null,
-    "ambiguity_detected": {{
-        "ambiguous": false,
-        "entity": null,
-        "options": [],
-        "reason": null
-    }},
-    "reasoning": "brief explanation of enrichment"
-    }}"""),
-            MessagesPlaceholder("messages"),  # Chat history auto-injected
-            ("human", "Query: {user_query}\n\nEnrich this query without searching documents.")
+Return JSON: enriched_query, domain_context (null), ambiguity_detected (ambiguous: false), reasoning."""),
+            MessagesPlaceholder("messages"),
+            ("human", "Query: {user_query}")
         ])
 
         enrichment_messages = enrichment_prompt.format_messages(
@@ -406,86 +395,51 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
 
         # Agentic enrichment with chat history but NO TOOLS
         enrichment_prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a query enrichment agent for specific, targeted questions.
-             
-    ---
-    USER MEMORIES (Previously Retrieved Documents):
-    ---
-    {memories_text}
+            ("system", """You are a query enrichment agent for a document retrieval system.
 
-    ---
-    PHASE 0: CHECK HISTORY FIRST
-    ---
+USER MEMORIES (previously retrieved documents):
+{memories_text}
 
-    BEFORE enriching for RAG, check if you can answer directly:
+─── ENRICHMENT RULES ──────────────────────────────────────────────────────────
+Produce a concise, standalone enriched_query for RAG search:
 
-    1. Recent Chat History (messages below): Was this EXACT or VERY SIMILAR question asked recently ? Is the answer already in a recent AI response?
-    2. Previously Retrieved Documents (above): Do these already contain the answer? Is this a follow-up on the same topic/entity?
+1. Resolve elliptical references
+   Replace shorthand with the full entity inferred from the most recent relevant turn.
+   e.g. "summarize jan 2021" after a GN1 link-test discussion
+     → "summarize No1 TVC Refresh Creative Brief Jan 2021 GN1 link test India"
 
-    IF answer EXISTS in history or previous docs:
-    → Set enriched_query = "" (empty string)
-    → Put FULL ANSWER in reasoning field
-    → Start with: "Based on our previous discussion..." or "As I mentioned..."
+2. Carry forward unrestated context
+   Inherit brand, product, report type, category, geography, and time period from
+   prior turns when the user omits them. Override only what the user explicitly changes.
+   e.g. user asked about U&A reports, then says "concept testing"
+     → "list all concept testing reports India"
 
-    IMPORTANT EXCEPTION (Content Analysis Requests):
-    → If the follow-up asks to READ/SUMMARIZE/DIAGNOSE OBSERVATIONS/INSIGHTS from known documents (e.g., "what are the observations", "summarize", "what does X say", "find insights", "diagnostics")
-    → DO NOT answer directly from history; history only contains document titles and links, not full content.
-    → Set task_type = "summarization" and provide enriched_query for RAG retrieval.
+3. Apply defaults (only when absent from both the query and history)
+   - No time period → prepend "latest"
+   - No geography  → append "India"
 
-    ELSE (needs new retrieval):
-    → Set enriched_query = "brief, clear version for RAG search"
-    → Keep reasoning brief
+─── DIRECT ANSWER SHORTCUT ────────────────────────────────────────────────────
+Set enriched_query = "" only when the COMPLETE answer already exists verbatim in a
+prior AI response — not when prior turns merely list document titles or links.
+Place the full answer in reasoning, starting with "Based on our previous discussion…"
 
-    ---         
+─── SUMMARIZATION EXCEPTION ───────────────────────────────────────────────────
+When the user wants to read, summarize, or get insights from a specific document:
+- Always set task_type = "summarization" and provide a non-empty enriched_query.
+- Infer document_category from the document name or context.
+- Never use the direct-answer shortcut; document content is not stored in history.
 
-    The user asked a SPECIFIC question with clear entities mentioned.
-
-    Your job:
-    1. Use chat history to infer context (e.g., if user previously asked "list all U&A reports" and now says "concept testing", infer they mean "list all concept testing reports")
-    2. Rephrase the query briefly and clearly for RAG search
-    3. Preserve all entity names exactly as mentioned
-    4. Keep enrichment MINIMAL - do not enumerate document types, synonyms, or variants
-    5. Set ambiguous = false (this is a specific query)
-    6. If no time period is present in the query or chat history, add "latest" to enriched_query
-    7. If no geography is present in the query or chat history, add "India" to enriched_query
-    
-    Return JSON with:
-    {{
-    "enriched_query": "empty string '' if answering directly, otherwise brief query for RAG",
-    "domain_context": {{"query_type": "specific"}},
-    "ambiguity_detected": {{
-        "ambiguous": false,
-        "entity": null,
-        "options": [],
-        "reason": null
-    }},
-    "reasoning": "If answering directly: FULL ANSWER starting with 'Based on our previous discussion...'
-                If routing to RAG: one-line explanation of enrichment",
-    "task_type": "one of: summarization | listing | content_search | other",
-    "document_category": "best-guess document type for schema lookup, e.g. 'Link Test', 'U&A', 'Concept Test', 'Dipstick', or null if unknown"
-    }}
-
-    task_type rules:
-    - "summarization": user wants to read/summarize/get insights from a specific document
-    - "listing": user wants to list or count documents
-    - "content_search": user wants to find specific facts or data points across documents
-    - "other": anything else
-
-    document_category rules:
-    - Only set for task_type="summarization"
-    - Infer from the document name, type, or chat history context
-    - Use EXACT values: "Link Test", "U&A", "Concept Test", "Dipstick" — or null if uncertain
-
-    CRITICAL:
-    - Keep enriched_query SHORT and DIRECT
-    - Do NOT add verbose descriptions, document type enumerations, or synonyms
-    - Example: User says "concept testing" after "list all U&A reports" → enriched_query = "list all concept testing reports"
-    - Example: NOT "Retrieve and list all documents that specifically reference 'Concept testing'..."
-    - ambiguous MUST be false
-    - options MUST be empty array []
-    - If enriched_query is EMPTY "" → You answered directly, don't route to RAG"""),
-            MessagesPlaceholder("messages"),  # Chat history auto-injected
-            ("human", "Query: {user_query}\n\nCheck history first. If answer exists, set enriched_query='' and put full answer in reasoning otherwise enrich this specific query briefly, using chat history for context." )
+─── OUTPUT ────────────────────────────────────────────────────────────────────
+{{
+  "enriched_query": "standalone RAG query, or '' if answering directly",
+  "domain_context": {{"query_type": "specific"}},
+  "ambiguity_detected": {{"ambiguous": false, "entity": null, "options": [], "reason": null}},
+  "reasoning": "direct answer text, or one-line enrichment rationale",
+  "task_type": "summarization | listing | content_search | other",
+  "document_category": "Link Test | U&A | Concept Test | Dipstick | null"
+}}"""),
+            MessagesPlaceholder("messages"),
+            ("human", "Query: {user_query}")
         ])
 
         enrichment_messages = enrichment_prompt.format_messages(
