@@ -12,62 +12,6 @@ import json
 from memory_store import store  # <-- your PostgresStore
 from langgraph.types import RunnableConfig
 
-# ---------------------------------------------------------------------------
-# Default context constants — time period and geography
-# ---------------------------------------------------------------------------
-_TIME_PERIOD_KEYWORDS = [
-    "q1", "q2", "q3", "q4", "mat ", " mat", "ytd", "h1", "h2", "fy",
-    "jan", "feb", "mar", "apr", "may", "jun",
-    "jul", "aug", "sep", "oct", "nov", "dec",
-    "quarter", "annual", "yearly", "monthly", "week",
-    "2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026",
-]
-
-_GEOGRAPHY_KEYWORDS = [
-    "india", "indian",
-    "usa", "u.s.a", "u.s.", "united states", "america",
-    "uk", "u.k.", "united kingdom", "britain",
-    "china", "chinese", "global", "worldwide", "international",
-    "asia", "asian", "europe", "european", "africa", "african",
-    "indonesia", "bangladesh", "pakistan", "vietnam", "thailand",
-    "malaysia", "country", "countries", "region", "regions",
-]
-
-
-def _build_time_geo_defaults(user_query: str) -> str:
-    """
-    Inspect the raw user query and return an instruction block that the
-    enrichment LLM must follow for any missing time period or geography
-    dimension.  Returns an empty string when both dimensions are already
-    present in the query.
-    """
-    q = user_query.lower()
-    has_time = any(kw in q for kw in _TIME_PERIOD_KEYWORDS)
-    has_geo = any(kw in q for kw in _GEOGRAPHY_KEYWORDS)
-
-    lines = []
-    if not has_time:
-        lines.append(
-            "⏰ TIME PERIOD not specified in the query → use the LATEST available data.\n"
-            "   Priority order: 2026 → 2025 → 2024 → 2023 → 2022 → older.\n"
-            "   Add the most recent year (e.g. '2026' or 'latest') to enriched_query."
-        )
-    if not has_geo:
-        lines.append(
-            "🌍 GEOGRAPHY not specified in the query → default to INDIA.\n"
-            "   Add 'India' to enriched_query."
-        )
-
-    if not lines:
-        return ""  # both dimensions already present — no defaults needed
-
-    return (
-        "\n---\n"
-        "MANDATORY DEFAULTS — apply the rules below because the user did NOT specify these dimensions:\n"
-        + "\n".join(lines)
-        + "\n---"
-    )
-
 
 
 
@@ -231,16 +175,9 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     awaiting_clarification = state.awaiting_clarification
     previous_ambiguity = state.previous_ambiguity
 
-    # Compute default context for time period and geography BEFORE any enrichment
-    time_geo_defaults = _build_time_geo_defaults(user_query)
-
     print(f"Query: {user_query}")
     print(f"User ID: {user_id}")
     print(f"Clarification Mode: {awaiting_clarification}")
-    if time_geo_defaults:
-        print(f"📍 Time/Geo defaults: {time_geo_defaults[:120]}...")
-    else:
-        print("📍 Time/Geo: both dimensions present in query — no defaults applied")
     if awaiting_clarification and previous_ambiguity:
         print(f"Previous Entity: {previous_ambiguity.entity}")
         print(f"Previous Options: {[opt.label for opt in previous_ambiguity.options[:5]]}")
@@ -526,8 +463,6 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     2. Add any helpful context from chat history if available
     3. Do NOT search for domain entities
 
-    {time_geo_defaults}
-
     Return JSON with:
     {{
     "enriched_query": "clear, specific version of the query",
@@ -543,12 +478,11 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
             MessagesPlaceholder("messages"),  # Chat history auto-injected
             ("human", "Query: {user_query}\n\nEnrich this query without searching documents.")
         ])
-
+        
         enrichment_messages = enrichment_prompt.format_messages(
             memories_text=memories_text,
             messages=chat_history,
-            user_query=user_query,
-            time_geo_defaults=time_geo_defaults,
+            user_query=user_query
         )
 
         llm_structured = llm.with_structured_output(SemanticOutput, method="function_calling")
@@ -672,9 +606,7 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     - Example: NOT "Retrieve and list all documents that specifically reference 'Concept testing'..."
     - ambiguous MUST be false
     - options MUST be empty array []
-    - If enriched_query is EMPTY "" → You answered directly, don't route to RAG
-
-    {time_geo_defaults}"""),
+    - If enriched_query is EMPTY "" → You answered directly, don't route to RAG"""),
             MessagesPlaceholder("messages"),  # Chat history auto-injected
             ("human", "Query: {user_query}\n\nCheck history first. If answer exists, set enriched_query='' and put full answer in reasoning otherwise enrich this specific query briefly, using chat history for context." )
         ])
@@ -682,8 +614,7 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
         enrichment_messages = enrichment_prompt.format_messages(
             memories_text=memories_text,
             messages=chat_history,
-            user_query=user_query,
-            time_geo_defaults=time_geo_defaults,
+            user_query=user_query
         )
 
         llm_structured = llm.with_structured_output(SemanticOutput, method="function_calling")
@@ -807,8 +738,6 @@ Example:
             ("system", """You are a semantic enrichment agent for HIGH-LEVEL, EXPLORATORY queries.
 {clarification_context}
 
-{time_geo_defaults}
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 YOUR MISSION: Use the azure_ai_search tool to DISCOVER entities and detect ambiguities
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -820,9 +749,6 @@ The user wants to:
 - Resolve ambiguity (e.g., "market share of soap" - which soap brand?)
 
 USE THE TOOL to search the SEMANTIC index for entity values and business context.
-When searching the semantic index, include the default geography and time period
-(from the MANDATORY DEFAULTS block above) directly in the query text,
-e.g. query = "soap brands India 2025" instead of just "soap brands".
 
 You autonomously decide:
 - What to search for (entities, categories, metrics)
@@ -917,7 +843,6 @@ IMPORTANT:
             memories_text=memories_text,
             messages=chat_history,
             user_query=user_query,
-            time_geo_defaults=time_geo_defaults,
         )
         
         # Start tool-calling loop
