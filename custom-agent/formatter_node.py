@@ -1,42 +1,8 @@
 """Formatter Node - Polishes RAG output using full prompt and structured output"""
 
 from typing import Dict, Any
-from langchain_openai import AzureChatOpenAI
 from models import PipelineState, FormatterOutput
-import json
-
-# ----------------- Helpers -----------------
-def create_llm():
-    """Create AzureChatOpenAI instance"""
-    import config
-    return AzureChatOpenAI(
-        azure_deployment=config.AZURE_OPENAI_DEPLOYMENT,
-        azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
-        api_key=config.AZURE_OPENAI_KEY,
-        api_version=config.AZURE_OPENAI_API_VERSION,
-        temperature=1,
-        timeout=120.0,
-        max_retries=2,
-    )
-
-def safe_utf8(text: str) -> str:
-    if not text:
-        return ""
-    # Replace invalid UTF-8 characters with '?'
-    # Also remove null bytes which PostgreSQL cannot handle in JSON
-    cleaned = text.encode("utf-8", errors="replace").decode("utf-8")
-    return cleaned.replace("\x00", "")
-
-def sanitize_any(obj):
-    if obj is None:
-        return None
-    if isinstance(obj, str):
-        return safe_utf8(obj)
-    if isinstance(obj, list):
-        return [sanitize_any(i) for i in obj]
-    if isinstance(obj, dict):
-        return {k: sanitize_any(v) for k, v in obj.items()}
-    return obj
+from utils import safe_utf8, sanitize_any, create_llm
 
 # ----------------- Node -----------------
 def formatter_node(state: PipelineState) -> Dict[str, Any]:

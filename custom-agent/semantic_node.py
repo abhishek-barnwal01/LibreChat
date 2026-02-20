@@ -1,154 +1,14 @@
 """Semantic Node - Query enrichment and ambiguity detection"""
 
 from typing import Dict, Any, List
-from langchain_openai import AzureChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tools import azure_ai_search
 from models import AmbiguityInfo, IntentClassification, SemanticOutput, PipelineState
-import asyncio
-import config
 import json
-from memory_store import store  # <-- your PostgresStore
+from memory_store import store
 from langgraph.types import RunnableConfig
-
-
-
-
-# ----- Add this helper -----
-def safe_utf8(text: str) -> str:
-    if not text:
-        return ""
-    # Replace invalid UTF-8 characters with '?'
-    # Also remove null bytes which PostgreSQL cannot handle in JSON
-    cleaned = text.encode("utf-8", errors="replace").decode("utf-8")
-    return cleaned.replace("\x00", "")
-
-
-# ----------------------------
-
-
-def sanitize_any(obj):
-    if obj is None:
-        return None
-    if isinstance(obj, str):
-        return safe_utf8(obj)
-    if isinstance(obj, list):
-        return [sanitize_any(i) for i in obj]
-    if isinstance(obj, dict):
-        return {k: sanitize_any(v) for k, v in obj.items()}
-    return obj
-
-
-def create_llm():
-    """Create LLM instance"""
-    return AzureChatOpenAI(
-        azure_deployment=config.AZURE_OPENAI_DEPLOYMENT,  # Updated param name
-        azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
-        api_key=config.AZURE_OPENAI_KEY,
-        api_version=config.AZURE_OPENAI_API_VERSION,
-        temperature=1,
-    )
-
-
-async def _invoke_single_tool_async(tool_call, tools_map: dict) -> ToolMessage:
-    """Execute a single tool call asynchronously and return a ToolMessage."""
-    if hasattr(tool_call, "name"):
-        tool_name = tool_call.name
-        tool_args = tool_call.args
-        tool_id = tool_call.id
-    else:
-        tool_name = tool_call["name"]
-        tool_args = tool_call["args"]
-        tool_id = tool_call["id"]
-
-    if isinstance(tool_args, str):
-        try:
-            tool_args = json.loads(tool_args)
-        except json.JSONDecodeError:
-            return ToolMessage(
-                content=json.dumps({"error": f"Invalid JSON in tool args: {tool_args}"}),
-                tool_call_id=tool_id,
-            )
-
-    if tool_name in tools_map:
-        try:
-            result = await asyncio.to_thread(tools_map[tool_name].invoke, tool_args)
-            return ToolMessage(content=result, tool_call_id=tool_id)
-        except Exception as e:
-            return ToolMessage(
-                content=json.dumps({"error": str(e)}), tool_call_id=tool_id
-            )
-    else:
-        return ToolMessage(
-            content=json.dumps({"error": f"Unknown tool: {tool_name}"}),
-            tool_call_id=tool_id,
-        )
-
-
-def _invoke_single_tool_sync(tool_call, tools_map: dict) -> ToolMessage:
-    """Synchronous fallback for single tool call execution."""
-    if hasattr(tool_call, "name"):
-        tool_name = tool_call.name
-        tool_args = tool_call.args
-        tool_id = tool_call.id
-    else:
-        tool_name = tool_call["name"]
-        tool_args = tool_call["args"]
-        tool_id = tool_call["id"]
-
-    if isinstance(tool_args, str):
-        try:
-            tool_args = json.loads(tool_args)
-        except json.JSONDecodeError:
-            return ToolMessage(
-                content=json.dumps({"error": f"Invalid JSON in tool args: {tool_args}"}),
-                tool_call_id=tool_id,
-            )
-
-    if tool_name in tools_map:
-        try:
-            result = tools_map[tool_name].invoke(tool_args)
-            return ToolMessage(content=result, tool_call_id=tool_id)
-        except Exception as e:
-            return ToolMessage(
-                content=json.dumps({"error": str(e)}), tool_call_id=tool_id
-            )
-    else:
-        return ToolMessage(
-            content=json.dumps({"error": f"Unknown tool: {tool_name}"}),
-            tool_call_id=tool_id,
-        )
-
-
-def _is_event_loop_running() -> bool:
-    """Check if an asyncio event loop is already running."""
-    try:
-        loop = asyncio.get_running_loop()
-        return loop.is_running()
-    except RuntimeError:
-        return False
-
-
-def execute_tool_calls(tool_calls: list, tools_map: dict) -> list:
-    """Execute tool calls in parallel using asyncio.gather when multiple calls exist."""
-    if len(tool_calls) <= 1:
-        return [_invoke_single_tool_sync(tc, tools_map) for tc in tool_calls]
-
-    print(f"  ⚡ Executing {len(tool_calls)} tool calls in parallel (asyncio.gather)")
-
-    async def _gather_all():
-        return await asyncio.gather(
-            *[_invoke_single_tool_async(tc, tools_map) for tc in tool_calls]
-        )
-
-    if _is_event_loop_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            results = pool.submit(asyncio.run, _gather_all()).result()
-        return list(results)
-    else:
-        return list(asyncio.run(_gather_all()))
+from utils import safe_utf8, sanitize_any, create_llm, execute_tool_calls
 
 
 def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, Any]:
@@ -183,13 +43,15 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
         print(f"Previous Options: {[opt.label for opt in previous_ambiguity.options[:5]]}")
     
     thread_id = config.get("configurable", {}).get("thread_id", "default")
-    # Step 1: Load user memories from PostgresStore
+    # Step 1: Load user memories from PostgresStore (once — rag_node reuses via state)
     try:
-        user_memories = store.search(
-            ("rag_memory", user_id, thread_id),  # tuple namespace
+        _raw_items = store.search(
+            ("rag_memory", user_id, thread_id),
             query=None,
-            limit=10
+            limit=10,
         )
+        # Convert store Item objects to plain dicts so they serialise cleanly in PipelineState
+        user_memories = [item.value for item in _raw_items] if _raw_items else []
         print(f"📚 Loaded {len(user_memories)} user memories")
     except Exception as e:
         print(f"⚠️ Could not load memories: {e}")
@@ -204,8 +66,7 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     # (written by rag_node into PostgresStore after each retrieval)
     if user_memories:
         memories_text = "Previously retrieved documents:\n"
-        for mem in user_memories:
-            mem_dict = mem.value
+        for mem_dict in user_memories:
             filename = mem_dict.get("filename", "")
             content_path = mem_dict.get("content_path", "")
             description = mem_dict.get("description", "")[:300]
@@ -834,6 +695,10 @@ OUTPUT:
         print(f"   Ambiguous: {output.ambiguity_detected.ambiguous}")
 
         if output.ambiguity_detected.ambiguous:
+            # Cap at 10 options — clarification_node further limits to 5 for display.
+            # Without a cap the LLM can return hundreds, bloating state and breaking the UI.
+            if len(output.ambiguity_detected.options) > 10:
+                output.ambiguity_detected.options = output.ambiguity_detected.options[:10]
             print(f"   Entity: {output.ambiguity_detected.entity}")
             print(f"   Options: {len(output.ambiguity_detected.options)}")
             for opt in output.ambiguity_detected.options[:5]:

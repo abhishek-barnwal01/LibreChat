@@ -116,8 +116,8 @@ class PipelineState(BaseModel):
     awaiting_clarification: bool = False  # Flag to track if we're waiting for clarification response
     previous_ambiguity: Optional[AmbiguityInfo] = None  # Store previous ambiguity for context
 
-    # 🔹 Add retrieval memory to track docs already fetched (changed to list for JSON compatibility)
-    retrieval_memory: Dict[str, List[str]] = Field(
-        default_factory=lambda: {"semantic": [], "rag": []}
-    )
+    # Memories loaded once in semantic_node and reused by rag_node (avoids double DB query).
+    # Each entry is a plain dict with keys: filename, content_path, description, pages, score.
+    user_memories: List[Dict[str, Any]] = Field(default_factory=list)
+
     ambiguity_detected: Optional[AmbiguityInfo] = Field(default_factory=lambda: AmbiguityInfo(ambiguous=False))

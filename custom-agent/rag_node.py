@@ -2,18 +2,17 @@
 """RAG Node - Full prompt with retrieval, synthesis, and citations"""
 
 from typing import Dict, Any, List
-from langchain_openai import AzureChatOpenAI
 from langchain_core.messages import ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from tools import azure_ai_search
-from models import RAGOutput, PipelineState
-import asyncio
-import config
+from models import RAGOutput, RetrievedDoc, PipelineState
 import json
+import hashlib
 import pathlib
 from memory_store import store
 from langgraph.types import RunnableConfig
+from utils import safe_utf8, sanitize_any, create_llm, filter_sensitive_content, execute_tool_calls
 
 # Load summarization schemas once at module level
 _SCHEMAS_PATH = pathlib.Path(__file__).parent / "schemas.json"
@@ -64,169 +63,7 @@ def get_summarization_schema(file_category_ai: str) -> str:
     })
 
 
-# ----- Add this helper at the top of rag_node.py -----
-def safe_utf8(text: str) -> str:
-    if not text:
-        return ""
-    # Replace invalid UTF-8 characters with '?'
-    # Also remove null bytes which PostgreSQL cannot handle in JSON
-    cleaned = text.encode("utf-8", errors="replace").decode("utf-8")
-    return cleaned.replace("\x00", "")
 
-
-def filter_sensitive_content(text: str) -> str:
-    """Remove or replace content that might trigger Azure content filters"""
-    if not text:
-        return ""
-    
-    # Replace potentially problematic patterns
-    filtered = text
-    
-    # Common filter triggers - replace with safe alternatives
-    filter_patterns = {
-        r'(?i)content.*filter': 'content validation',
-        r'(?i)harmful': 'inappropriate',
-        r'(?i)violence|violent': 'aggressive',
-        r'(?i)hate|hateful': 'prejudiced',
-        r'(?i)abuse|abusive': 'harmful behavior',
-    }
-    
-    import re
-    for pattern, replacement in filter_patterns.items():
-        try:
-            filtered = re.sub(pattern, replacement, filtered)
-        except:
-            pass
-    
-    return filtered
-
-
-# ------------------------------------------------------
-def sanitize_any(obj):
-    if obj is None:
-        return None
-    if isinstance(obj, str):
-        return safe_utf8(obj)
-    if isinstance(obj, list):
-        return [sanitize_any(i) for i in obj]
-    if isinstance(obj, dict):
-        return {k: sanitize_any(v) for k, v in obj.items()}
-    return obj
-
-
-def create_llm():
-    return AzureChatOpenAI(
-        azure_deployment=config.AZURE_OPENAI_DEPLOYMENT,
-        azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
-        api_key=config.AZURE_OPENAI_KEY,
-        api_version=config.AZURE_OPENAI_API_VERSION,
-        temperature=1,
-        timeout=120.0,
-        max_retries=3,
-    )
-
-
-async def _invoke_single_tool_async(tool_call, tools_map: dict) -> ToolMessage:
-    """Execute a single tool call asynchronously and return a ToolMessage."""
-    if hasattr(tool_call, "name"):
-        tool_name = tool_call.name
-        tool_args = tool_call.args
-        tool_id = tool_call.id
-    else:
-        tool_name = tool_call["name"]
-        tool_args = tool_call["args"]
-        tool_id = tool_call["id"]
-
-    if isinstance(tool_args, str):
-        try:
-            tool_args = json.loads(tool_args)
-        except json.JSONDecodeError:
-            return ToolMessage(
-                content=json.dumps({"error": f"Invalid JSON in tool args: {tool_args}"}),
-                tool_call_id=tool_id,
-            )
-
-    if tool_name in tools_map:
-        try:
-            # Run sync tool.invoke in a thread to avoid blocking the event loop
-            result = await asyncio.to_thread(tools_map[tool_name].invoke, tool_args)
-            return ToolMessage(content=result, tool_call_id=tool_id)
-        except Exception as e:
-            return ToolMessage(
-                content=json.dumps({"error": str(e)}), tool_call_id=tool_id
-            )
-    else:
-        return ToolMessage(
-            content=json.dumps({"error": f"Unknown tool: {tool_name}"}),
-            tool_call_id=tool_id,
-        )
-
-
-def execute_tool_calls(tool_calls: list, tools_map: dict) -> list:
-    """Execute tool calls in parallel using asyncio.gather."""
-    if len(tool_calls) <= 1:
-        # Single call — run synchronously (no async overhead)
-        return [_invoke_single_tool_sync(tc, tools_map) for tc in tool_calls]
-
-    print(f"  ⚡ Executing {len(tool_calls)} tool calls in parallel (asyncio.gather)")
-
-    async def _gather_all():
-        return await asyncio.gather(
-            *[_invoke_single_tool_async(tc, tools_map) for tc in tool_calls]
-        )
-
-    # If an event loop is already running, use it; otherwise create one
-    if _is_event_loop_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            results = pool.submit(asyncio.run, _gather_all()).result()
-        return list(results)
-    else:
-        return list(asyncio.run(_gather_all()))
-
-
-def _is_event_loop_running() -> bool:
-    """Check if an asyncio event loop is already running."""
-    try:
-        loop = asyncio.get_running_loop()
-        return loop.is_running()
-    except RuntimeError:
-        return False
-
-
-def _invoke_single_tool_sync(tool_call, tools_map: dict) -> ToolMessage:
-    """Synchronous fallback for single tool call execution."""
-    if hasattr(tool_call, "name"):
-        tool_name = tool_call.name
-        tool_args = tool_call.args
-        tool_id = tool_call.id
-    else:
-        tool_name = tool_call["name"]
-        tool_args = tool_call["args"]
-        tool_id = tool_call["id"]
-
-    if isinstance(tool_args, str):
-        try:
-            tool_args = json.loads(tool_args)
-        except json.JSONDecodeError:
-            return ToolMessage(
-                content=json.dumps({"error": f"Invalid JSON in tool args: {tool_args}"}),
-                tool_call_id=tool_id,
-            )
-
-    if tool_name in tools_map:
-        try:
-            result = tools_map[tool_name].invoke(tool_args)
-            return ToolMessage(content=result, tool_call_id=tool_id)
-        except Exception as e:
-            return ToolMessage(
-                content=json.dumps({"error": str(e)}), tool_call_id=tool_id
-            )
-    else:
-        return ToolMessage(
-            content=json.dumps({"error": f"Unknown tool: {tool_name}"}),
-            tool_call_id=tool_id,
-        )
 
 def _extract_retrieved_docs_from_messages(agent_messages: list) -> list:
     """
@@ -322,22 +159,33 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
     enriched_query = state.enriched_query or ""
     messages = state.messages
 
+    # Early return: semantic_specific already answered directly from history.
+    # enriched_query="" is the convention used to signal "no retrieval needed".
+    if not enriched_query and state.clarification_message:
+        print("⏭️  RAG NODE: skipping — semantic node already answered directly")
+        return {
+            "messages": sanitize_any(state.messages),
+            "rag_output": sanitize_any(RAGOutput(
+                retrieved_docs=[],
+                final_answer=state.clarification_message,
+                total_searches=0,
+            ).dict()),
+        }
+
     thread_id = config.get("configurable", {}).get("thread_id", "default")
 
-    user_memories = store.search(
-        ("rag_memory", state.user_id, thread_id),
-        query=None,   # no semantic filtering, just fetch recent
-        limit=5
-    )
+    # Reuse memories already loaded by semantic_node — avoids a second DB round-trip.
+    # Each entry is a plain dict: {filename, content_path, description, pages, score}.
+    user_memories: list = state.user_memories or []
 
-# 🔹 Step 2: Format them for prompt
+    # Format memories for the RAG prompt
     if user_memories:
         memories_text = "Previously retrieved documents:\n"
-        for i, doc in enumerate(user_memories, start=1):
-            filename = doc.value.get("filename", "")
-            content_path = doc.value.get("content_path", "")
-            description_preview = doc.value.get("description", "")[:300]
-            pages = doc.value.get("pages", "")
+        for i, mem in enumerate(user_memories, start=1):
+            filename = mem.get("filename", "")
+            content_path = mem.get("content_path", "")
+            description_preview = mem.get("description", "")[:300]
+            pages = mem.get("pages", "")
             memories_text += f"- Doc {i}: {filename} ({content_path}) [Pages: {pages}] {description_preview}\n"
     else:
         memories_text = "No previously retrieved documents."
@@ -621,7 +469,11 @@ CRITICAL:
         for i, d in enumerate(output.retrieved_docs):
             store.put(
                 namespace=("rag_memory", state.user_id, thread_id),  # tuple namespace
-                key=f"doc_{i}_{hash(d.description) % 100000}",  # unique key per doc
+                # Stable key derived from content_path + pages — collision-free and
+                # idempotent (same doc retrieved again overwrites, not duplicates).
+                key=hashlib.sha256(
+                    f"{d.content_path}|{d.pages}".encode()
+                ).hexdigest()[:24],
                 value={
                     "type": "retrieved_doc",
                     "filename": safe_utf8(d.filename),
