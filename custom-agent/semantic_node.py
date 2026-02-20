@@ -737,112 +737,32 @@ Example:
 
         # Create prompt template with tool usage instructions
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a semantic enrichment agent for HIGH-LEVEL, EXPLORATORY queries.
+            ("system", """You are a semantic enrichment agent. Your job: turn a broad/exploratory query into a precise, RAG-ready enriched_query.
 {clarification_context}
+STEP 1 — CHECK HISTORY FIRST
+Read the conversation history below. If it already provides enough context to resolve the query (specific entities, brands, time period, geography are known), skip the tool and produce enriched_query directly.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-YOUR MISSION: Use the azure_ai_search tool to DISCOVER entities and detect ambiguities
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — SEARCH (only if history is insufficient)
+Call azure_ai_search on the semantic index to discover what entities exist.
+- If no geography in query or history → include "India" in search text
+- If no time period in query or history → include "latest" in search text
 
-You are handling a BROAD/EXPLORATORY query that needs entity discovery.
-The user wants to:
-- Discover what options are available (e.g., "what products do we have")
-- Get an overview (e.g., "compare all regions")
-- Resolve ambiguity (e.g., "market share of soap" - which soap brand?)
+STEP 3 — DECIDE
+- One clear match, or user said "all" → enriched_query = specific query for RAG, ambiguous = false
+- Multiple matches, nothing in history resolves them → ambiguous = true, populate all options
+- Search failed or no results → best-effort enriched_query from query alone, ambiguous = false
 
-USE THE TOOL to search the SEMANTIC index for entity values and business context.
-
-You autonomously decide:
-- What to search for (entities, categories, metrics)
-- How many results to retrieve (top_k: 10-100)
-- If you need multiple searches to fully understand the domain
-
-----
-CONVERSATION HISTORY (Chat history - automatically injected below)
-----
-
-You have access to the full conversation history below. Use it to:
-- Resolve ambiguities from previous context
-- Understand follow-up questions
-- Avoid asking for clarification if context is already clear
-- Reference previous responses and tool calls
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WORKFLOW STEPS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-STEP 1: SEARCH FOR ENTITIES
-Call the tool to discover available entities:
-    azure_ai_search(query="relevant search terms", index_type="semantic", top_k=?)
-
-
-STEP 2: CHECK CHAT HISTORY FIRST (CRITICAL)
-BEFORE marking anything as ambiguous:
-1. READ the chat history carefully (available below current message)
-2. If previous conversation provides context → USE IT, NOT ambiguous
-3. If user says "ALL" or "all of them" → Include all options, NOT ambiguous
-4. Only mark ambiguous if: multiple values exist AND no context in history
-
-STEP 3: EXTRACT OPTIONS FROM SEARCH RESULTS
-READ the content returned by the tool and extract specific entity values.
-
-If multiple values exist AND no context resolves them:
-✓ ambiguity_detected.ambiguous = true
-✓ ambiguity_detected.entity = "the entity name (e.g., 'brand', 'product')"
-✓ ambiguity_detected.options MUST be populated with all discovered options
-✓ ambiguity_detected.reason = "explain why clarification is needed"
-
-Each option MUST be structured as:
-{{
-  "label": "Display Name (e.g., 'Lux')",
-  "value": "lowercase_underscore_value (e.g., 'lux')"
-}}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OUTPUT REQUIREMENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-You MUST return ONLY valid JSON in this exact structure:
-
-{{
-  "enriched_query": "enriched version of the query with discovered entities",
-  "domain_context": {{"discovered_entities": ["list of discovered entities"]}},
-  "ambiguity_detected": {{
-    "ambiguous": false or true,
-    "entity": "string or null",
-    "options": [],
-    "reason": "string or null"
-  }},
-  "reasoning": "explain your search strategy and findings"
-}}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CRITICAL RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✓ If ambiguous = true → options MUST NOT be empty
-✓ If options is empty → ambiguous MUST be false
-✓ If ambiguous = false → options MUST be an empty array []
-✓ If ambiguity is resolved by history → ambiguous = false
-✓ If search fails → ambiguous = false and explain in reasoning
-✓ ALWAYS use the tool at least once - this is a discovery/exploratory query
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT — valid JSON matching the SemanticOutput schema:
+- enriched_query: specific, RAG-ready query string (include India / latest if defaults were applied)
+- ambiguity_detected.options: populated only when ambiguous = true; empty array [] otherwise
 """),
             MessagesPlaceholder("messages"),
-            ("human", """Query: {user_query}
-
-Task: Use the azure_ai_search tool to discover entities and enrich this BROAD query.
-
-IMPORTANT:
-1. This is a HIGH-LEVEL query - use the tool to discover entities
-2. Check chat history ABOVE before marking ambiguous
-3. Use user memories to provide context
-4. Populate ambiguity_detected.options if multiple entities found"""),
+            ("human", "Query: {user_query}"),
         ])
         
         # Format initial messages with history
         initial_messages = prompt.format_messages(
             clarification_context=clarification_context,
-            memories_text=memories_text,
             messages=chat_history,
             user_query=user_query,
         )
@@ -885,18 +805,12 @@ IMPORTANT:
                 print("✅ Final response received")
                 break
         
-        raw_output = response.content if response else ""
-
-        print("\n📄 SEMANTIC AGENT RAW OUTPUT:")
-        print("=" * 70)
-        print(raw_output[:500] + "..." if len(raw_output) > 500 else raw_output)
-        print("=" * 70)
-
-        # Parse with structured output
+        # Extract structured output from the full agent_messages context (includes tool results),
+        # NOT from raw_output alone — that would lose all search result context.
         llm_structured = create_llm().with_structured_output(
             SemanticOutput, method="function_calling"
         )
-        output: SemanticOutput = llm_structured.invoke(raw_output)
+        output: SemanticOutput = llm_structured.invoke(agent_messages)
 
         # Store reasoning
         if output.reasoning:
