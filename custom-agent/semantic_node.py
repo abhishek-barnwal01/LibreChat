@@ -427,10 +427,12 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     → Put FULL ANSWER in reasoning field
     → Start with: "Based on our previous discussion..." or "As I mentioned..."
 
-    IMPORTANT EXCEPTION (Content Analysis Requests):
-    → If the follow-up asks to READ/SUMMARIZE/DIAGNOSE OBSERVATIONS/INSIGHTS from known documents (e.g., "what are the observations", "summarize", "what does X say", "find insights", "diagnostics")
-    → DO NOT answer directly from history unless the full content was already summarized earlier.
-    → INSTEAD: Provide a concise enriched_query for RAG to retrieve and analyze those documents.
+    CRITICAL EXCEPTION — Summarization / Content Analysis:
+    If the user asks to SUMMARIZE, READ, ANALYZE, DIAGNOSE, or EXTRACT INSIGHTS/OBSERVATIONS from a document:
+    → ONLY set enriched_query = "" if the COMPLETE document content was already fully summarized in a prior AI message.
+    → In ALL other cases — even if the document name or title is known from chat history — set enriched_query to the document name/identifier and route to RAG.
+    → NEVER set enriched_query = "" with an explanation that content is missing or unavailable; that path is reserved for "I already have the complete answer".
+    → Example: User says "summarize last document" after a list of docs → resolve "last document" to its actual name from history, then set enriched_query = "summarize <resolved document name>".
 
     ELSE (needs new retrieval):
     → Set enriched_query = "brief, clear version for RAG search"
@@ -451,7 +453,7 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     
     Return JSON with:
     {{
-    "enriched_query": "empty string '' if answering directly, otherwise brief query for RAG",
+    "enriched_query": "empty string '' ONLY if you have the COMPLETE answer already in history; otherwise a short keyword query for RAG (max 10 words)",
     "domain_context": {{"query_type": "specific"}},
     "ambiguity_detected": {{
         "ambiguous": false,
@@ -467,10 +469,11 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     - Keep enriched_query SHORT and DIRECT
     - Do NOT add verbose descriptions, document type enumerations, or synonyms
     - Example: User says "concept testing" after "list all U&A reports" → enriched_query = "list all concept testing reports"
+    - Example: User says "summarize last document" after a list → resolve the name, enriched_query = "summarize Summary Document.docx"
     - Example: NOT "Retrieve and list all documents that specifically reference 'Concept testing'..."
     - ambiguous MUST be false
     - options MUST be empty array []
-    - If enriched_query is EMPTY "" → You answered directly, don't route to RAG"""),
+    - enriched_query = "" ONLY means "I have the full answer in history right now". If content is NOT in history, set a real enriched_query."""),
             MessagesPlaceholder("messages"),  # Chat history auto-injected
             ("human", "Query: {user_query}\n\nCheck history first. If answer exists, set enriched_query='' and put full answer in reasoning otherwise enrich this specific query briefly, using chat history for context." )
         ])
@@ -503,6 +506,24 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
                 raise
         
         # ✅ PHASE 0: Check if answered directly from history
+        # Guard: if the LLM returned empty enriched_query but its reasoning indicates it
+        # CANNOT answer (content not in history), treat it as needing RAG instead.
+        _reasoning_lower = (output.reasoning or "").lower()
+        _cannot_answer_signals = [
+            "not in history", "not previously", "haven't previously", "do not have",
+            "don't have", "no summary", "would be required", "cannot answer",
+            "can't answer", "need to retrieve", "needs retrieval", "retrieval would",
+            "not available in history", "not found in history",
+        ]
+        _llm_confused = (
+            (not output.enriched_query or output.enriched_query.strip() == "")
+            and any(sig in _reasoning_lower for sig in _cannot_answer_signals)
+        )
+        if _llm_confused:
+            print("⚠️  LLM returned empty enriched_query but reasoning shows content is NOT in history.")
+            print("   Falling back: routing to RAG with original user query.")
+            output.enriched_query = user_query  # route to RAG
+
         if not output.enriched_query or output.enriched_query.strip() == "":
             print("✅ ANSWERED DIRECTLY FROM HISTORY - SKIPPING RAG NODE")
             print(f"   Direct answer: {output.reasoning[:200]}...")
