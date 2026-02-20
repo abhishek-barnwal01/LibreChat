@@ -200,17 +200,19 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     if chat_history:
         print(f"📜 Chat History: {len(messages)} messages available")
 
-    # Format user memories for prompt
-    memories_text = ""
+    # Format previously retrieved documents for prompt
+    # (written by rag_node into PostgresStore after each retrieval)
     if user_memories:
-        memories_text = "Known facts about this user:\n"
+        memories_text = "Previously retrieved documents:\n"
         for mem in user_memories:
             mem_dict = mem.value
-            mem_type = mem_dict.get("type", "unknown")
-            mem_content = mem_dict.get("content", "")
-            memories_text += f"- [{mem_type}] {mem_content}\n"
+            filename = mem_dict.get("filename", "")
+            content_path = mem_dict.get("content_path", "")
+            description = mem_dict.get("description", "")[:300]
+            pages = mem_dict.get("pages", "")
+            memories_text += f"- {filename} ({content_path}) [Pages: {pages}] {description}\n"
     else:
-        memories_text = "No prior user memories stored."
+        memories_text = "No previously retrieved documents."
 
     # ========================================================================
     # CLARIFICATION RESPONSE MODE: Skip intent classification

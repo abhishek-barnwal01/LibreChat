@@ -254,15 +254,15 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
 
 # 🔹 Step 2: Format them for prompt
     if user_memories:
-        docs_text = "Previously retrieved documents for reference:\n"
+        memories_text = "Previously retrieved documents:\n"
         for i, doc in enumerate(user_memories, start=1):
             filename = doc.value.get("filename", "")
             content_path = doc.value.get("content_path", "")
             description_preview = doc.value.get("description", "")[:300]
             pages = doc.value.get("pages", "")
-            docs_text += f"- Doc {i}: {filename} ({content_path}) [Pages: {pages}] {description_preview}\n"
+            memories_text += f"- Doc {i}: {filename} ({content_path}) [Pages: {pages}] {description_preview}\n"
     else:
-        docs_text = "No prior retrieved documents."
+        memories_text = "No previously retrieved documents."
 
     llm = create_llm()
     tools = [azure_ai_search, get_summarization_schema]
@@ -383,7 +383,7 @@ CRITICAL:
     )
 
     initial_messages = prompt.format_messages(
-        user_query=user_query, enriched_query=enriched_query, messages=messages,memories_text=docs_text
+        user_query=user_query, enriched_query=enriched_query, messages=messages, memories_text=memories_text
     )
 
     agent_messages = list(initial_messages)
