@@ -584,24 +584,8 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     3. Preserve all entity names exactly as mentioned
     4. Keep enrichment MINIMAL - do not enumerate document types, synonyms, or variants
     5. Set ambiguous = false (this is a specific query)
-
-    ---
-    IMPLICIT DIMENSION DEFAULTS (apply intelligently):
-    ---
-    Analyse the user's query and chat history. If either of these dimensions is absent,
-    inject the default INTO the enriched_query so the RAG layer retrieves the right documents:
-
-    • TIME PERIOD — If the user has NOT mentioned any year, quarter, month, or date range
-      (neither in this query NOR resolved from chat history), assume they want the LATEST
-      available data. Prefer the most recent year first: 2026 → 2025 → 2024 → and so on.
-      Add "latest" to the enriched_query.
-
-    • GEOGRAPHY — If the user has NOT mentioned any country, region, or market
-      (neither in this query NOR resolved from chat history), assume INDIA.
-      Add "India" to the enriched_query.
-
-    If the user HAS specified either dimension explicitly, preserve it as-is — do NOT override.
-    ---
+    6. If no time period is present in the query or chat history, add "latest" to enriched_query
+    7. If no geography is present in the query or chat history, add "India" to enriched_query
     
     Return JSON with:
     {{
@@ -782,23 +766,6 @@ You have access to the full conversation history below. Use it to:
 - Understand follow-up questions
 - Avoid asking for clarification if context is already clear
 - Reference previous responses and tool calls
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-IMPLICIT DIMENSION DEFAULTS (apply intelligently)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Analyse the user's query AND chat history to determine if these dimensions are missing:
-
-• TIME PERIOD — If no year, quarter, month, or date range is mentioned
-  (neither in this query NOR resolved from chat history), assume the user wants the
-  LATEST available data. Prefer the most recent year first: 2026 → 2025 → 2024 → …
-  Include "latest" or the most recent year in both your search queries and the enriched_query.
-
-• GEOGRAPHY — If no country, region, or market is mentioned
-  (neither in this query NOR resolved from chat history), assume INDIA.
-  Include "India" in both your search queries and the enriched_query.
-
-If the user HAS specified either dimension, preserve it as-is — do NOT override.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WORKFLOW STEPS
