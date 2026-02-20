@@ -525,6 +525,11 @@ CRITICAL:
         RAGOutput, method="function_calling"
     )
     output: RAGOutput = llm_structured.invoke(raw_output)
+    # The structured call extracts metadata fields (retrieved_docs, search_strategy,
+    # reasoning, total_searches). Always override final_answer with the full raw_output
+    # so the actual detailed answer reaches the formatter — not the LLM's brief
+    # meta-description of what it did.
+    output.final_answer = raw_output
     
     # DEBUG: Print structured output before returning
     print("\n" + "-"*70)
