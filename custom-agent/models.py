@@ -127,3 +127,6 @@ class PipelineState(BaseModel):
     # Set by semantic_node; consumed by rag_node for deterministic flow control.
     task_type: Optional[str] = None           # "summarization" | "listing" | "content_search" | "other"
     document_category: Optional[str] = None   # e.g. "Link Test", "U&A" – used to pre-load schema
+
+    # When True, formatter_node skips its LLM call; app.py streams the formatter directly.
+    skip_formatter: bool = False

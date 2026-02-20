@@ -1,65 +1,18 @@
 """Formatter Node - Polishes RAG output using full prompt and structured output"""
 
+import json
 from typing import Dict, Any
 from models import PipelineState, FormatterOutput
 from utils import safe_utf8, sanitize_any, create_llm
 
-# ----------------- Node -----------------
-def formatter_node(state: PipelineState) -> Dict[str, Any]:
-    """
-    Formatter Node:
-    - Receives RAG final answer + confidence score
-    - Polishes the answer to make it user-friendly
-    - Outputs structured FormatterOutput
-    """
 
-    print("\n" + "="*70)
-    print("✨ FORMATTER NODE")
-    print("="*70)
+# ---------------------------------------------------------------------------
+# Shared prompt builder — used by formatter_node (non-streaming) and
+# app.py generate_stream (streaming). Single source of truth.
+# ---------------------------------------------------------------------------
 
-    user_query = state.user_query
-    rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
-    confidence = state.evaluation.confidence_score if state.evaluation else 0.8
-
-    # DEBUG: Print the full RAG output
-    print("\n" + "-"*70)
-    print("🐛 DEBUG: RAG OUTPUT RECEIVED")
-    print("-"*70)
-    if state.rag_output:
-        print(f"RAG Output Type: {type(state.rag_output)}")
-        print(f"RAG Output Keys: {state.rag_output.keys() if hasattr(state.rag_output, 'keys') else 'N/A (not dict)'}")
-        print(f"\nFull RAG Output:\n{json.dumps(state.rag_output, indent=2, default=str)}")
-    else:
-        print("⚠️ RAG Output is None!")
-    print("-"*70)
-
-    # ✅ PRIORITY 1: Clarification question - return as-is (no formatting needed)
-    if state.clarification_message and state.awaiting_clarification:
-        print("📝 Returning clarification question")
-        return {
-            "messages": sanitize_any(state.messages),
-            "formatted": sanitize_any({
-                "formatted_response": safe_utf8(state.clarification_message),
-                "metadata": {"source": "clarification", "confidence": 1.0}
-            })
-        }
-
-    # ✅ PRIORITY 2: Direct answer from semantic OR normal RAG - both get LLM formatting
-    if state.clarification_message and not state.awaiting_clarification:
-        print("📝 Formatting direct answer from semantic node")
-        rag_final_answer = state.clarification_message  
-        confidence = 1.0
-    else:
-        rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
-        confidence = state.evaluation.confidence_score if state.evaluation else 0.8
-
-    # PRIORITY 3: Normal RAG formatting 
-
-    print(f"\n📝 RAG's answer to format ({len(rag_final_answer)} chars)")
-    print(f"🔹 Confidence: {confidence:.2f}")
-
-    # Production-grade formatting prompt with all features
-    prompt = f"""You are a professional content formatter for an enterprise RAG system.
+def build_formatter_prompt(user_query: str, rag_answer: str, confidence: float) -> str:
+    return f"""You are a professional content formatter for an enterprise RAG system.
 
 Your mission: Transform the RAG answer into a PRODUCTION-GRADE, beautifully formatted response using MARKDOWN.
 
@@ -71,7 +24,7 @@ USER'S QUESTION
 ---
 RAG'S RAW ANSWER (Unformatted)
 ---
-{rag_final_answer}
+{rag_answer}
 
 ---
 CONFIDENCE SCORE: {confidence:.2f} / 1.00
@@ -109,7 +62,7 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
      | Sales  | $10M  | +15%   |
    - Highlight trends: 📈 for growth, 📉 for decline (when appropriate)
    - Use visual data relationships, including Mermaid diagrams when only when explicitly requested or when it significantly enhances understanding (avoid overuse)
- 
+
 4. CITATIONS & SOURCES
    - At the end, add a "### Sources" section
    - List all referenced documents/reports as bullet points
@@ -156,7 +109,7 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
      • Avoid special chars like %, +, &, $ in labels (use words instead: "16.6% growth" → ["16.6 percent growth"])
      • Use --> for arrows (not => or ->)
      • Graph types: graph TD (top-down), graph LR (left-right)
-     
+
      CORRECT FORMAT:
      :::artifact{{type="application/vnd.mermaid" title="Market Analysis"}}
      graph TD
@@ -165,7 +118,7 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
          B --> D["Growth: 16.6 percent YoY"]
          C --> E["Penetration: 41.6 percent"]
      :::
-    
+
     - BAR CHARTS (comparing metrics across categories):
      :::artifact{{type="application/vnd.mermaid" title="Sales Comparison"}}
      %%{{init: {{'theme':'base'}}}}%%
@@ -175,7 +128,7 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
          y-axis "Growth Percent" 0 --> 20
          bar [16.6, 8.2, 12.4, 5.7, 10.1]
      :::
-    
+
     - LINE CHARTS (trends over time):
      :::artifact{{type="application/vnd.mermaid" title="Market Share Trend"}}
      %%{{init: {{'theme':'base'}}}}%%
@@ -185,7 +138,7 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
          y-axis "Market Share Percent" 0 --> 20
          line [12.5, 13.2, 13.8, 14.5, 15.1, 16.6]
      :::
-     
+
     - PIE CHARTS (showing proportions):
      :::artifact{{type="application/vnd.mermaid" title="Category Share"}}
      %%{{init: {{'theme':'base'}}}}%%
@@ -195,7 +148,7 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
          "Lifebuoy" : 18.5
          "Others" : 23.3
      :::
-     
+
     - MULTIPLE DATA SERIES (comparing trends):
      :::artifact{{type="application/vnd.mermaid" title="Brand Performance"}}
      %%{{init: {{'theme':'base'}}}}%%
@@ -206,7 +159,7 @@ Transform the RAW answer above into a POLISHED, PROFESSIONAL response with these
          line [10, 12, 15, 16.6]
          line [35, 38, 40, 41.6]
      :::
-    
+
    - Math Equations: Use LaTeX syntax for formulas
      $$Growth Rate = (New - Old) / Old * 100$$
    - Blockquotes: Use > for important notes or disclaimers
@@ -288,6 +241,74 @@ Your response should include:
 - Advanced formatting (tables, mermaid, code blocks) when it is explicitly requested by user or when it enhances understanding
 """
 
+
+# ----------------- Node -----------------
+def formatter_node(state: PipelineState) -> Dict[str, Any]:
+    """
+    Formatter Node:
+    - Receives RAG final answer + confidence score
+    - Polishes the answer to make it user-friendly
+    - Outputs structured FormatterOutput
+
+    When state.skip_formatter is True (streaming path), skips the LLM call
+    entirely — app.py streams the formatter directly via llm.astream().
+    """
+
+    print("\n" + "="*70)
+    print("✨ FORMATTER NODE")
+    print("="*70)
+
+    # ✅ Streaming path: app.py will call the formatter LLM directly via astream().
+    if state.skip_formatter:
+        print("⏭️  FORMATTER NODE: skipping LLM call — streaming path will format directly")
+        return {
+            "messages": sanitize_any(state.messages),
+            "formatted": sanitize_any({"formatted_response": "", "metadata": {"source": "streamed"}}),
+        }
+
+    user_query = state.user_query
+    rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
+    confidence = state.evaluation.confidence_score if state.evaluation else 0.8
+
+    # DEBUG: Print the full RAG output
+    print("\n" + "-"*70)
+    print("🐛 DEBUG: RAG OUTPUT RECEIVED")
+    print("-"*70)
+    if state.rag_output:
+        print(f"RAG Output Type: {type(state.rag_output)}")
+        print(f"RAG Output Keys: {state.rag_output.keys() if hasattr(state.rag_output, 'keys') else 'N/A (not dict)'}")
+        print(f"\nFull RAG Output:\n{json.dumps(state.rag_output, indent=2, default=str)}")
+    else:
+        print("⚠️ RAG Output is None!")
+    print("-"*70)
+
+    # ✅ PRIORITY 1: Clarification question - return as-is (no formatting needed)
+    if state.clarification_message and state.awaiting_clarification:
+        print("📝 Returning clarification question")
+        return {
+            "messages": sanitize_any(state.messages),
+            "formatted": sanitize_any({
+                "formatted_response": safe_utf8(state.clarification_message),
+                "metadata": {"source": "clarification", "confidence": 1.0}
+            })
+        }
+
+    # ✅ PRIORITY 2: Direct answer from semantic OR normal RAG - both get LLM formatting
+    if state.clarification_message and not state.awaiting_clarification:
+        print("📝 Formatting direct answer from semantic node")
+        rag_final_answer = state.clarification_message
+        confidence = 1.0
+    else:
+        rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
+        confidence = state.evaluation.confidence_score if state.evaluation else 0.8
+
+    # PRIORITY 3: Normal RAG formatting
+
+    print(f"\n📝 RAG's answer to format ({len(rag_final_answer)} chars)")
+    print(f"🔹 Confidence: {confidence:.2f}")
+
+    prompt = build_formatter_prompt(user_query, rag_final_answer, confidence)
+
     # Invoke LLM with retry logic for jailbreak detection
     max_retries = 2
     for attempt in range(max_retries):
@@ -301,13 +322,11 @@ Your response should include:
             if "jailbreak" in error_msg or "content filter" in error_msg or "content_filter" in error_msg or "responsibleai" in error_msg or "400" in error_msg:
                 print(f"\n⚠️ Azure filter triggered (attempt {attempt + 1}/{max_retries})")
                 if attempt < max_retries - 1:
-                    # Retry with slightly modified prompt
                     print(f"   Retrying with adjusted prompt...")
                     import time
                     time.sleep(1)
                     continue
                 else:
-                    # Final fallback
                     print(f"   Using fallback formatter")
                     output = FormatterOutput(
                         formatted_response=f"## Answer\n\n{rag_final_answer}\n\n### Sources\nRefer to original documents.",
@@ -320,5 +339,5 @@ Your response should include:
     # ----------------- Return -----------------
     return {
         "messages": sanitize_any(state.messages),  # preserve chat history
-        "formatted": sanitize_any(output.dict()),  # structured formatted output
+        "formatted": sanitize_any(output.dict()),   # structured formatted output
     }
