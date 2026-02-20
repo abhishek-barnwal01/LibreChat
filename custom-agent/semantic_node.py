@@ -565,6 +565,11 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     → Put FULL ANSWER in reasoning field
     → Start with: "Based on our previous discussion..." or "As I mentioned..."
 
+    IMPORTANT EXCEPTION (Content Analysis Requests):
+    → If the follow-up asks to READ/SUMMARIZE/DIAGNOSE OBSERVATIONS/INSIGHTS from known documents (e.g., "what are the observations", "summarize", "what does X say", "find insights", "diagnostics")
+    → DO NOT answer directly from history unless the full content was already summarized earlier.
+    → INSTEAD: Provide a concise enriched_query for RAG to retrieve and analyze those documents.
+
     ELSE (needs new retrieval):
     → Set enriched_query = "brief, clear version for RAG search"
     → Keep reasoning brief
@@ -603,7 +608,7 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     - options MUST be empty array []
     - If enriched_query is EMPTY "" → You answered directly, don't route to RAG"""),
             MessagesPlaceholder("messages"),  # Chat history auto-injected
-            ("human", "Query: {user_query}\n\nCheck history first. If answer exists, set enriched_query='' and put full answer in reasoning otherwise enrich this specific query briefly, using chat history for context.")
+            ("human", "Query: {user_query}\n\nCheck history first. If answer exists, set enriched_query='' and put full answer in reasoning otherwise enrich this specific query briefly, using chat history for context." )
         ])
 
         enrichment_messages = enrichment_prompt.format_messages(
