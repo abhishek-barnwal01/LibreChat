@@ -5,13 +5,63 @@ from typing import Dict, Any, List
 from langchain_openai import AzureChatOpenAI
 from langchain_core.messages import ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.tools import tool
 from tools import azure_ai_search
 from models import RAGOutput, PipelineState
 import asyncio
 import config
 import json
+import pathlib
 from memory_store import store
 from langgraph.types import RunnableConfig
+
+# Load summarization schemas once at module level
+_SCHEMAS_PATH = pathlib.Path(__file__).parent / "schemas.json"
+with open(_SCHEMAS_PATH) as _f:
+    _SUMMARIZATION_SCHEMAS: dict = json.load(_f)
+
+
+@tool
+def get_summarization_schema(file_category_ai: str) -> str:
+    """
+    Summarization schema helper (tool).
+
+    Use when summarizing a document:
+    - Input: file_category_ai (e.g., "Link Test", "U&A", "Concept Test", "Dipstick")
+    - Returns: JSON with:
+      • slots: all fields to extract
+      • section_hints: section names to target during retrieval
+
+    Workflow:
+    1) Identify file_category_ai.
+       - If unknown: call azure_ai_search with selectFields="document_title,file_category_ai,content_path" and a query matching the document name/brand.
+    2) Call this tool to get slots + section_hints.
+    3) Retrieve chunks:
+       - filter: file_category_ai eq '<value>' and text_document_id ne ''
+       - selectFields: "content_text,document_title,content_path,locationMetadata"
+       - paginate: top_k=100, skip as needed (max 4 calls)
+    4) Fill every slot from retrieved text. Set null for missing fields. Do not fabricate.
+    5) Return the filled schema as final_answer (pure JSON). Do NOT add narrative.
+
+    Examples:
+    - get_summarization_schema("U&A")
+    - get_summarization_schema("Concept Test")
+    """
+    schema = _SUMMARIZATION_SCHEMAS.get(file_category_ai)
+    if not schema:
+        # Try case-insensitive match
+        for key, val in _SUMMARIZATION_SCHEMAS.items():
+            if key.lower() == file_category_ai.lower().strip():
+                schema = val
+                break
+
+    if schema:
+        return json.dumps(schema, indent=2)
+
+    return json.dumps({
+        "error": f"No schema found for '{file_category_ai}'",
+        "available_categories": list(_SUMMARIZATION_SCHEMAS.keys()),
+    })
 
 
 # ----- Add this helper at the top of rag_node.py -----
@@ -215,8 +265,11 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
         docs_text = "No prior retrieved documents."
 
     llm = create_llm()
-    tools = [azure_ai_search]
-    tools_map = {"azure_ai_search": azure_ai_search}
+    tools = [azure_ai_search, get_summarization_schema]
+    tools_map = {
+        "azure_ai_search": azure_ai_search,
+        "get_summarization_schema": get_summarization_schema,
+    }
     llm_with_tools = llm.bind_tools(tools)
 
     # Focused RAG prompt - tool description handles "how to use the tool"
@@ -293,32 +346,32 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
 3. PAGE-SPECIFIC ("What's on page 6 of Report.pdf"):
    → Use filter with locationMetadata/pageNumber.
 
-4. SUMMARIZATION ("Summarize document X", "Give me a summary of X"):
-   → First call: top_k=100, select_fields="content_text,document_title,content_path,locationMetadata". Check totalCount.
-   → If totalCount <= 300: paginate to read all chunks (top_k=100, skip=100, skip=200).
-   → If totalCount > 300: sample beginning (already have first 100), middle (skip=totalCount/2, top_k=100), end (skip=totalCount-100, top_k=100). Max 4 calls total.
+4. SUMMARIZATION ("Summarize document X", "Summarize these documents", "Summarize observations in document X", "Summarize section in X"):
+   → ALWAYS treat summarization as a NEW structured task.
+   → Identify file category(file_category_ai) from user query or memory (use azure_ai_search with selectFields to find it when unknown).
+   → MANDATORY: Call get_summarization_schema(file_category_ai) to get slots + section_hints; use them to target retrieval.
+   → Retrieve chunks with filter + selectFields as above; paginate top_k=100.
+   → Compose a business report style answer using the slots and section_hints:
+        - For each section, write in a business report style. Avoid single-line slot responses.
+        - Include quantitative tables where applicable (e.g., metrics vs norms).
+   → Fill every slot; set null for missing fields and do not fabricate information.
+   → Add extra crucial details in additional_notes if needed.
+   → For multi-document requests:
+        - Apply full schema pipeline separately per document. Use get_summarization_schema to get the right schema for each document type.
+        - DO NOT merge.
 
 SYNTHESIS RULES:
 - Executive Summary (2-3 sentences), then Detailed Analysis with inline citations, then Key Takeaways (3-5 bullets).
+- Use business report formatting: clear section headings, bullet lists, and tables for numeric comparisons.
+- Avoid terse one-liners; provide explanatory sentences grounded in retrieved evidence.
 - ALWAYS cite with page numbers: 📄 [filename](content_path) (Page N)
 - For listing queries: return ALL documents from search, not a filtered subset.
 - Evidence-based claims only — do not fabricate information.
 
-OUTPUT — Return valid JSON:
-{{
-  "retrieved_docs": [
-    {{"filename": "string", "content_path": "string", "score": 0.0, "pages": "string", "description": "string"}}
-  ],
-  "final_answer": "string (markdown with citations)",
-  "search_strategy": "string (brief description of approach taken)",
-  "reasoning": "string (why this strategy was chosen)",
-  "total_searches": 0
-}}
-
 CRITICAL:
 - For listing queries, retrieved_docs MUST contain ALL documents found (e.g., if facets return 36 documents, include all 36).
 - Include page numbers in every citation from locationMetadata/pageNumber.
-- Use content_path from search results for links — never reconstruct URLs.
+- Use content_path from search results for links — NEVER reconstruct URLs.
 """
 
     prompt = ChatPromptTemplate.from_messages(
