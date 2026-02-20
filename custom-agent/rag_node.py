@@ -307,6 +307,21 @@ Search Strategy Guidelines:
 - For broad exploratory search: use general terms
 - For targeted retrieval: use focused terms after identifying relevant sources
 
+IMPLICIT DIMENSION DEFAULTS (apply intelligently when constructing filters):
+
+• GEOGRAPHY — Read the enriched_query. If it does NOT mention any specific country or
+  region, add  and country_ai eq 'India'  to your OData filter.
+  If the user explicitly asked for a different country (e.g. "Indonesia", "global"),
+  use that country instead. Do NOT add the India filter when the user specified another geography.
+
+• TIME PERIOD — If the enriched_query says "latest" or does not mention any specific
+  year / quarter / date range:
+  1. Run your first search WITHOUT a time-period filter.
+  2. Examine the file_time_period_ai values in the returned results.
+  3. Identify the most recent period actually present (2026 > 2025 > 2024 > 2023 > …).
+  4. Focus your answer on documents from that most recent period and state which period it is.
+  5. Do NOT fabricate a time period — only use values that actually appear in the results.
+
 CRITICAL: selectFields USAGE
 - When LISTING documents (names, links, counts): use selectFields: "document_title,content_path"
 - When READING/ANALYZING content: ALWAYS include "content_text"in selectFields (e.g., "document_title,content_path,locationMetadata/pageNumber,content_text")
