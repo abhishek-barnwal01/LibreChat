@@ -84,14 +84,6 @@ async def chat(request: Request):
             config={"configurable": {"thread_id": thread_id}},
         )
 
-        clarification_msg = result.get("clarification_message")
-        if clarification_msg:
-            return {
-                "response": clarification_msg,
-                "needs_clarification": True,
-                "session_id": thread_id,
-            }
-
         formatter_result = result.get("formatted", {})
         eval_result = result.get("evaluation", {})
         rag_result = result.get("rag_output", {})
@@ -217,13 +209,9 @@ async def chat_completions(request: Request):
             config={"configurable": {"thread_id": session_id}},
         )
 
-        clarification_msg = result.get("clarification_message")
-        if clarification_msg:
-            final_response = clarification_msg
-        else:
-            final_response = result.get("formatted", {}).get(
-                "formatted_response", "I couldn't generate a response."
-            )
+        formatted_response = result.get("formatted", {}).get("formatted_response", "")
+        clarification_msg = result.get("clarification_message", "")
+        final_response = formatted_response or clarification_msg or "I couldn't generate a response."
 
         response = {
             "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
@@ -279,16 +267,17 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
         print(f"📌 clarification_message: {result.get('clarification_message')}")
         print(f"📌 semantic_chitchat: {result.get('semantic_chitchat')}")
 
-        clarification_msg = result.get("clarification_message")
-        if clarification_msg:
-            print(f"✅ Clarification detected, returning: {clarification_msg[:100]}...")
+        formatted_response = result.get("formatted", {}).get("formatted_response", "")
+        clarification_msg = result.get("clarification_message", "")
+        if formatted_response:
+            print("📄 Using formatted response")
+            final_response = append_sas_to_blob_urls(formatted_response)
+        elif clarification_msg:
+            print(f"✅ Using clarification/chitchat message: {clarification_msg[:100]}...")
             final_response = clarification_msg
         else:
-            print("📄 No clarification, using formatted response")
-            final_response = result.get("formatted", {}).get("formatted_response", "")
-            final_response = append_sas_to_blob_urls(final_response)
-            if not final_response:
-                print(f"⚠️ No formatted response, result keys: {result.keys()}")
+            print(f"⚠️ No response found, result keys: {list(result.keys())}")
+            final_response = ""
 
         chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
         created_time = int(time.time())
