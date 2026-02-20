@@ -60,8 +60,8 @@ class RAGOutput(BaseModel):
 
     retrieved_docs: List[RetrievedDoc]
     final_answer: str  # ← RAG's synthesized answer
-    search_strategy: str
-    reasoning: str
+    search_strategy: Optional[str] = None
+    reasoning: Optional[str] = None
     total_searches: int
 
 

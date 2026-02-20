@@ -228,6 +228,84 @@ def _invoke_single_tool_sync(tool_call, tools_map: dict) -> ToolMessage:
             tool_call_id=tool_id,
         )
 
+def _extract_retrieved_docs_from_messages(agent_messages: list) -> list:
+    """
+    Parse unique retrieved documents directly from azure_ai_search ToolMessages.
+    Deterministic — no second LLM call needed. Deduplicates by document_title,
+    keeping the highest score and collecting all seen page numbers.
+    """
+    from models import RetrievedDoc
+    from langchain_core.messages import AIMessage
+
+    # Build a map: tool_call_id → tool_name so we only process azure_ai_search results
+    tool_call_names: dict = {}
+    for msg in agent_messages:
+        if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls"):
+            for tc in (msg.tool_calls or []):
+                tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                tc_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+                if tc_id and tc_name:
+                    tool_call_names[tc_id] = tc_name
+
+    seen: dict = {}  # filename → {content_path, score, pages: set}
+    for msg in agent_messages:
+        if not isinstance(msg, ToolMessage):
+            continue
+        # Only process azure_ai_search results
+        tc_id = getattr(msg, "tool_call_id", None)
+        if tool_call_names.get(tc_id) != "azure_ai_search":
+            continue
+        try:
+            data = json.loads(msg.content)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        for doc in data.get("docs", []):
+            title = doc.get("document_title", "")
+            if not title:
+                continue
+            path = doc.get("content_path", "")
+            score = float(doc.get("score") or 0.0)
+            page = doc.get("page_number")
+            if title not in seen:
+                seen[title] = {"content_path": path, "score": score, "pages": set()}
+            else:
+                if score > seen[title]["score"]:
+                    seen[title]["score"] = score
+                    seen[title]["content_path"] = path
+            if page is not None:
+                seen[title]["pages"].add(int(page))
+
+    result = []
+    for filename, info in seen.items():
+        pages_set = info["pages"]
+        if pages_set:
+            lo, hi = min(pages_set), max(pages_set)
+            pages_str = str(lo) if lo == hi else f"{lo}-{hi}"
+        else:
+            pages_str = None
+        result.append(RetrievedDoc(
+            filename=filename,
+            content_path=info["content_path"],
+            score=round(info["score"], 4),
+            pages=pages_str,
+            description=filename,  # filename is already descriptive
+        ))
+    return result
+
+
+def _count_search_calls(agent_messages: list) -> int:
+    """Count how many azure_ai_search tool calls were made."""
+    from langchain_core.messages import AIMessage
+    count = 0
+    for msg in agent_messages:
+        if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls"):
+            for tc in (msg.tool_calls or []):
+                name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+                if name == "azure_ai_search":
+                    count += 1
+    return count
+
+
 def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, Any]:
     """
     Full RAG node with multi-phase document retrieval, page-level extraction, synthesis,
@@ -521,15 +599,16 @@ CRITICAL:
     print(f"Total docs count in raw output: {raw_output.count('filename')}")
     print("-"*70)
 
-    llm_structured = create_llm().with_structured_output(
-        RAGOutput, method="function_calling"
+    # Build RAGOutput directly — no second LLM call needed.
+    # retrieved_docs are parsed from actual tool results (deterministic, exact).
+    # raw_output IS the final answer; no extraction step can improve on it.
+    retrieved_docs = _extract_retrieved_docs_from_messages(agent_messages)
+    total_searches = _count_search_calls(agent_messages)
+    output = RAGOutput(
+        retrieved_docs=retrieved_docs,
+        final_answer=raw_output,
+        total_searches=total_searches,
     )
-    output: RAGOutput = llm_structured.invoke(raw_output)
-    # The structured call extracts metadata fields (retrieved_docs, search_strategy,
-    # reasoning, total_searches). Always override final_answer with the full raw_output
-    # so the actual detailed answer reaches the formatter — not the LLM's brief
-    # meta-description of what it did.
-    output.final_answer = raw_output
     
     # DEBUG: Print structured output before returning
     print("\n" + "-"*70)
