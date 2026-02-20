@@ -40,6 +40,8 @@ class SemanticOutput(BaseModel):
     domain_context: Optional[Dict[str, Any]] = None  # optional
     ambiguity_detected: AmbiguityInfo
     reasoning: Optional[str] = None  # optional
+    task_type: Optional[Literal["summarization", "listing", "content_search", "other"]] = "other"
+    document_category: Optional[str] = None  # e.g. "Link Test", "U&A" – best-guess for schema pre-load
 
 
 # -------------------------
@@ -121,3 +123,7 @@ class PipelineState(BaseModel):
     user_memories: List[Dict[str, Any]] = Field(default_factory=list)
 
     ambiguity_detected: Optional[AmbiguityInfo] = Field(default_factory=lambda: AmbiguityInfo(ambiguous=False))
+
+    # Set by semantic_node; consumed by rag_node for deterministic flow control.
+    task_type: Optional[str] = None           # "summarization" | "listing" | "content_search" | "other"
+    document_category: Optional[str] = None   # e.g. "Link Test", "U&A" – used to pre-load schema

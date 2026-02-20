@@ -427,11 +427,10 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     → Put FULL ANSWER in reasoning field
     → Start with: "Based on our previous discussion..." or "As I mentioned..."
 
-    ABSOLUTE EXCEPTION — NEVER answer from history for these requests:
-    → If user query contains ANY of: "summarize", "summary", "what does X say", "what is in", "observations", "insights from", "diagnostics", "read X", "tell me about X report"
-    → ALWAYS set enriched_query to a non-empty RAG search string.
-    → NEVER set enriched_query = "" for summarization requests, even if the document was mentioned in history.
-    → Reason: history only contains document titles/links, NOT the full document content. Fresh RAG retrieval is mandatory to produce a real summary.
+    IMPORTANT EXCEPTION (Content Analysis Requests):
+    → If the follow-up asks to READ/SUMMARIZE/DIAGNOSE OBSERVATIONS/INSIGHTS from known documents (e.g., "what are the observations", "summarize", "what does X say", "find insights", "diagnostics")
+    → DO NOT answer directly from history; history only contains document titles and links, not full content.
+    → Set task_type = "summarization" and provide enriched_query for RAG retrieval.
 
     ELSE (needs new retrieval):
     → Set enriched_query = "brief, clear version for RAG search"
@@ -461,8 +460,21 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
         "reason": null
     }},
     "reasoning": "If answering directly: FULL ANSWER starting with 'Based on our previous discussion...'
-                If routing to RAG: one-line explanation of enrichment"
+                If routing to RAG: one-line explanation of enrichment",
+    "task_type": "one of: summarization | listing | content_search | other",
+    "document_category": "best-guess document type for schema lookup, e.g. 'Link Test', 'U&A', 'Concept Test', 'Dipstick', or null if unknown"
     }}
+
+    task_type rules:
+    - "summarization": user wants to read/summarize/get insights from a specific document
+    - "listing": user wants to list or count documents
+    - "content_search": user wants to find specific facts or data points across documents
+    - "other": anything else
+
+    document_category rules:
+    - Only set for task_type="summarization"
+    - Infer from the document name, type, or chat history context
+    - Use EXACT values: "Link Test", "U&A", "Concept Test", "Dipstick" — or null if uncertain
 
     CRITICAL:
     - Keep enriched_query SHORT and DIRECT
@@ -503,6 +515,12 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
                 # Re-raise other errors
                 raise
         
+        # ✅ Python guard: summarization tasks must always go to RAG — no history shortcut.
+        # This is a typed signal check (output.task_type), not keyword scanning.
+        if output.task_type == "summarization" and (not output.enriched_query or output.enriched_query.strip() == ""):
+            print("⚠️  GUARD: summarization task had empty enriched_query — forcing RAG routing")
+            output.enriched_query = user_query
+
         # ✅ PHASE 0: Check if answered directly from history
         if not output.enriched_query or output.enriched_query.strip() == "":
             print("✅ ANSWERED DIRECTLY FROM HISTORY - SKIPPING RAG NODE")
@@ -524,10 +542,13 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
                 "enriched_query": "",
                 "domain_context": sanitize_any(output.domain_context),
                 "ambiguity_detected": sanitize_any(output.ambiguity_detected.model_dump()),
+                "task_type": output.task_type,
+                "document_category": output.document_category,
             }
 
         print(f"✅ Enriched Query: {output.enriched_query}")
         print(f"   Reasoning: {output.reasoning}")
+        print(f"   Task Type: {output.task_type} | Document Category: {output.document_category}")
         print("➡️  Passing to RAG node for document search")
 
         # Store reasoning
@@ -550,6 +571,8 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
             "ambiguity_detected": sanitize_any(
                 output.ambiguity_detected.model_dump()
             ),
+            "task_type": output.task_type,
+            "document_category": output.document_category,
         }
 
     # ========================================================================

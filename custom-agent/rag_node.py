@@ -190,6 +190,47 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
     else:
         memories_text = "No previously retrieved documents."
 
+    # ------------------------------------------------------------------
+    # Summarization pre-load: if semantic_node typed this as a
+    # summarization task, call get_summarization_schema in Python
+    # *before* the agent loop so the schema is always in context.
+    # This is deterministic — no keyword scanning, no LLM decision.
+    # ------------------------------------------------------------------
+    task_type: str = state.task_type or "other"
+    document_category: str = state.document_category or ""
+    schema_injection: str = ""
+
+    if task_type == "summarization":
+        if document_category:
+            schema_result = get_summarization_schema.invoke({"file_category_ai": document_category})
+            parsed = json.loads(schema_result)
+            if "error" not in parsed:
+                schema_injection = (
+                    f"SUMMARIZATION SCHEMA (pre-loaded for \"{document_category}\"):\n"
+                    f"{schema_result}\n\n"
+                    f"Use these slots and section_hints to structure your retrieval and answer. "
+                    f"Call azure_ai_search now to retrieve the document content."
+                )
+                print(f"✅ Pre-loaded schema for '{document_category}'")
+            else:
+                # Category not in schemas — tell the agent which categories exist
+                available = list(_SUMMARIZATION_SCHEMAS.keys())
+                schema_injection = (
+                    f"This is a summarization task. Call get_summarization_schema first "
+                    f"with the best-matching category. Available: {available}."
+                )
+                print(f"⚠️  No schema for '{document_category}', injecting category hint")
+        else:
+            # Category unknown — let the agent discover and call the tool
+            available = list(_SUMMARIZATION_SCHEMAS.keys())
+            schema_injection = (
+                f"This is a summarization task. Your FIRST tool call must be "
+                f"get_summarization_schema(file_category_ai). "
+                f"Available categories: {available}. "
+                f"Infer the best match from the document name or context."
+            )
+            print("⚠️  Summarization task but no document_category — injecting tool-call instruction")
+
     llm = create_llm()
     tools = [azure_ai_search, get_summarization_schema]
     tools_map = {
@@ -213,7 +254,6 @@ BEFORE searching, check if answer already exists:
 
 SKIP SEARCH IF: query identical to last few messages | answer in recent history | follow-up on same docs/topic
 DO SEARCH IF: different topic/entity | no relevant history | user asks for "updated" info
-NEVER SKIP FOR: any query containing "summarize", "summary", "what does X say", "what is in", "observations", "insights from" — these ALWAYS require fresh retrieval via get_summarization_schema + azure_ai_search.
 
 IF SKIPPING:
   → Start: "Based on our previous discussion..." or "As I just mentioned..."
@@ -255,15 +295,6 @@ CRITICAL RULES:
 
 RETRIEVAL STRATEGY — Pick the right approach for each query type:
 
-0. SUMMARIZATION PRE-CHECK (MUST RUN FIRST, BEFORE ANY OTHER STEP):
-   → If the user query contains "summarize", "summary", "what does X say", "what is in", "tell me about X report", "overview of", or similar intent to read a document:
-   → Step A: Call get_summarization_schema(file_category_ai) FIRST.
-     - Identify file_category_ai from the query context or memory (e.g., "Link Test", "U&A", "Concept Test", "Dipstick").
-     - If unsure, call azure_ai_search with selectFields="file_category_ai,document_title" and filter by document name to discover the category, then call get_summarization_schema.
-   → Step B: Only AFTER receiving the schema, call azure_ai_search to retrieve content chunks.
-   → DO NOT proceed to azure_ai_search before completing Step A.
-   → DO NOT skip this step even if document content appears in chat history — history contains titles/links only, not full content.
-
 1. LISTING/COUNTING ("List all X", "How many X"):
    → Use facets in ONE call. Never loop per document.
    → Include ALL documents from facets in your response — do NOT filter or subset them.
@@ -283,10 +314,9 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
    → Use filter with locationMetadata/pageNumber.
 
 4. SUMMARIZATION ("Summarize document X", "Summarize these documents", "Summarize observations in document X", "Summarize section in X"):
-   → See STEP 0 above — get_summarization_schema MUST be called first. This is enforced in step 0.
-   → ALWAYS treat summarization as a NEW structured task; never serve from history.
-   → Identify file_category_ai from user query or memory; call azure_ai_search with selectFields="file_category_ai,document_title" if unknown.
-   → MANDATORY: get_summarization_schema(file_category_ai) must be called before azure_ai_search for content.
+   → ALWAYS treat summarization as a NEW structured task.
+   → Identify file category(file_category_ai) from user query or memory (use azure_ai_search with selectFields to find it when unknown).
+   → MANDATORY: Call get_summarization_schema(file_category_ai) to get slots + section_hints; use them to target retrieval.
    → Retrieve chunks with filter + selectFields as above; paginate top_k=100.
    → Compose a business report style answer using the slots and section_hints:
         - For each section, write in a business report style. Avoid single-line slot responses.
@@ -324,6 +354,13 @@ CRITICAL:
     )
 
     agent_messages = list(initial_messages)
+
+    # Inject schema context as the last message before the loop so it is
+    # the most-recent context the model sees — impossible to overlook.
+    if schema_injection:
+        from langchain_core.messages import SystemMessage as _SM
+        agent_messages.append(_SM(content=schema_injection))
+
     all_new_messages = []
     max_iterations = 10
     response = None
