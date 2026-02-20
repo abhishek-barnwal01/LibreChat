@@ -330,9 +330,9 @@ Your response should include:
             output: FormatterOutput = llm_structured.invoke(prompt)
             print(f"\n✅ Formatted response ({len(output.formatted_response)} chars)")
             break
-        except ValueError as e:
+        except Exception as e:
             error_msg = str(e).lower()
-            if "jailbreak" in error_msg or "content filter" in error_msg:
+            if "jailbreak" in error_msg or "content filter" in error_msg or "content_filter" in error_msg or "responsibleai" in error_msg or "400" in error_msg:
                 print(f"\n⚠️ Azure filter triggered (attempt {attempt + 1}/{max_retries})")
                 if attempt < max_retries - 1:
                     # Retry with slightly modified prompt

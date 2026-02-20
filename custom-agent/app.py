@@ -335,6 +335,15 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
         }
         yield f"data: {json.dumps(role_chunk)}\n\n"
 
+        # Sanitize error message — never echo filter-related keywords back into
+        # chat history (they would trigger Azure's content filter on every
+        # subsequent request, creating a self-perpetuating loop).
+        raw_err = str(e).lower()
+        if "jailbreak" in raw_err or "content_filter" in raw_err or "content filter" in raw_err or "responsibleai" in raw_err:
+            safe_error = "I wasn't able to format that response due to a content policy check. Please try rephrasing your question."
+        else:
+            safe_error = f"Something went wrong while processing your request. Please try again."
+
         error_chunk = {
             "id": chunk_id,
             "object": "chat.completion.chunk",
@@ -343,7 +352,7 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
             "choices": [
                 {
                     "index": 0,
-                    "delta": {"content": f"\n\n❌ Error: {str(e)}"},
+                    "delta": {"content": safe_error},
                     "finish_reason": "stop",
                 }
             ],
