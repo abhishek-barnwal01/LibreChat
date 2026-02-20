@@ -480,9 +480,8 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
             MessagesPlaceholder("messages"),  # Chat history auto-injected
             ("human", "Query: {user_query}\n\nEnrich this query without searching documents.")
         ])
-        
+
         enrichment_messages = enrichment_prompt.format_messages(
-            memories_text=memories_text,
             messages=chat_history,
             user_query=user_query
         )
