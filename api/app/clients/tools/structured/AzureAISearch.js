@@ -86,6 +86,14 @@ CRITICAL FILTER RULES:
    Wrong: "file_category_ai eq 'Brand equity'" → Returns image paths ❌
    Right: "file_category_ai eq 'Brand equity' and text_document_id ne ''" → Returns PDF paths ✅
 
+3. For Recommendation/Judgment Questions
+  Use targeted query terms that capture both sides of the answer. Include positive AND negative terms in a single search.
+  Example: query: "recommend not recommend conclusion risk concern overall"
+  This ensures relevance ranking surfaces chunks from both supporting AND contradicting sections.
+  DO NOT use selectFields without "content_text" for these - you need the full text to analyze.
+  If results only show one perspective, do one follow-up search with opposing terms (e.g., "not recommend risk caution decline").
+  Always check if results contain contradicting viewpoints before giving a final answer.
+
 PAGE-SPECIFIC SEARCHES:
 - The index has pageNumber field under locationMetadata
 - To filter by page: use "locationMetadata/pageNumber eq [number]"
