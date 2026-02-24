@@ -514,11 +514,14 @@ CRITICAL:
     print(f"Output Dict:\n{json.dumps(output.dict(), indent=2, default=str)}")
     print("-"*70)
     if output.retrieved_docs:
-        for i, d in enumerate(output.retrieved_docs):
+        # Batch-write all docs in parallel using a thread pool (optimization #4).
+        # Each store.put() is an independent DB round-trip; parallelising removes
+        # the serial N × latency bottleneck.
+        import concurrent.futures
+
+        def _put_doc(d):
             store.put(
-                namespace=("rag_memory", state.user_id, thread_id),  # tuple namespace
-                # Stable key derived from content_path + pages — collision-free and
-                # idempotent (same doc retrieved again overwrites, not duplicates).
+                namespace=("rag_memory", state.user_id, thread_id),
                 key=hashlib.sha256(
                     f"{d.content_path}|{d.pages}".encode()
                 ).hexdigest()[:24],
@@ -529,9 +532,13 @@ CRITICAL:
                     "description": safe_utf8(d.description),
                     "pages": d.pages,
                     "score": d.score,
-                }
+                },
             )
-        print(f"📚 Stored {len(output.retrieved_docs)} RAG docs to PostgresStore")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(output.retrieved_docs), 8)) as pool:
+            list(pool.map(_put_doc, output.retrieved_docs))
+
+        print(f"📚 Stored {len(output.retrieved_docs)} RAG docs to PostgresStore (parallel)")
 
 
     return {
