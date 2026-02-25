@@ -378,7 +378,7 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             return {
                 "messages": sanitize_any(all_new_messages),
                 "user_memories": sanitize_any(user_memories),
-                "clarification_message": safe_utf8(output.reasoning),
+                "clarification_message": safe_utf8(output.reasoning),  # ✅ Signals END
                 "semantic_chitchat": False,
                 "awaiting_clarification": False,
                 "previous_ambiguity": None,
@@ -405,10 +405,10 @@ ambiguity_detected, reasoning, task_type, document_category."""),
         return {
             "messages": sanitize_any(all_new_messages),
             "user_memories": sanitize_any(user_memories),
-            "clarification_message": None,
-            "semantic_chitchat": False,
-            "awaiting_clarification": False,
-            "previous_ambiguity": None,
+            "clarification_message": None,  # No clarification for specific questions
+            "semantic_chitchat": False,  # Clear the flag - this is not chitchat
+            "awaiting_clarification": False,  # Clear clarification flag
+            "previous_ambiguity": None,  # Clear previous ambiguity
             "enriched_query": safe_utf8(output.enriched_query),
             "domain_context": sanitize_any(output.domain_context),
             "ambiguity_detected": sanitize_any(
@@ -466,17 +466,21 @@ Example:
 
         # Create prompt template with tool usage instructions
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a semantic enrichment agent. Your job: discover entities and turn a broad/exploratory query into a precise, RAG-ready enriched_query.
+            ("system", """You are a semantic enrichment agent for HIGH-LEVEL, EXPLORATORY queries.
 {clarification_context}
 Previously retrieved documents (from memory):
 {memories_text}
 
 STEP 1 — CHECK HISTORY
-Skip the tool ONLY if the previous AI message already answered this exact question.
+Skip the tool ONLY if the previous AI message already answered this exact question or ambugity is resolved by history context.
 For all other cases — including new chats and follow-up questions — proceed to STEP 2.
 
 STEP 2 — SEARCH (mandatory for any new or exploratory question)
-Call azure_ai_search on the semantic index to discover what entities exist.
+Call azure_ai_search on the semantic index to DISCOVER entities and detect ambiguities.
+The user wants to:
+- Discover what options are available (e.g., "what products do we have")
+- Get an overview (e.g., "compare all regions")
+- Resolve ambiguity (e.g., "market share of soap" - which soap brand?)
 - If no geography in query or history → include "India" in search text
 - If no time period in query or history → include "latest" in search text
 
@@ -486,7 +490,7 @@ STEP 3 — DECIDE
 - Search failed or no results → best-effort enriched_query from query alone, ambiguous = false
 
 OUTPUT:
-- enriched_query: short keyword query (max 10 words), not a sentence or description
+- enriched_query: short keyword query, not a sentence or description
 - ambiguity_detected.options: populated only when ambiguous = true; empty array [] otherwise
 """),
             MessagesPlaceholder("messages"),
