@@ -384,27 +384,17 @@ CRITICAL:
                     msg.content = filter_sensitive_content(msg.content)
                 filtered_messages.append(msg)
 
-            # Stream the LLM response so synthesis tokens print live.
-            # Azure OpenAI always returns EITHER tool-call chunks OR content
-            # chunks — never both — so the first content token reliably signals
-            # the final synthesis iteration.  Tool-calling iterations are
-            # accumulated silently (no content to print).
+            # Stream the LLM response so astream_events in app.py can intercept
+            # synthesis tokens in real-time and pipe them to SSE.
+            # Tool-calling iterations produce no content chunks (only tool-call
+            # chunks), so they are silently accumulated without affecting the
+            # user-visible stream.
             accumulated = None
-            is_synthesis = False
             for chunk in llm_with_tools.stream(filtered_messages):
                 if accumulated is None:
                     accumulated = chunk
                 else:
                     accumulated = accumulated + chunk
-                if chunk.content:
-                    if not is_synthesis:
-                        print(f"\n{'─'*60}")
-                        print("🔄 Streaming synthesis...")
-                        print(f"{'─'*60}", flush=True)
-                        is_synthesis = True
-                    print(chunk.content, end="", flush=True)
-            if is_synthesis:
-                print()  # trailing newline after streamed content
             response = accumulated
 
         except ValueError as e:

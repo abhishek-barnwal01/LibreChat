@@ -19,8 +19,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage
 
 from graph import build_graph
-from formatter_node import build_formatter_prompt
-from utils import create_llm
 
 
 # ---------- Build LangGraph Flow (sync, runs once at startup) ----------
@@ -257,83 +255,91 @@ def _sse_chunk(chunk_id: str, created_time: int, model: str, *, delta: dict, fin
 # ---------- Streaming generator for LibreChat ----------
 async def generate_stream(user_query, langchain_messages, user_id, session_id, model):
     """
-    Two-phase streaming:
-      Phase 1 — Run the graph with skip_formatter=True (RAG + semantic nodes,
-                 no formatter LLM call). Graph finishes fast; formatter is skipped.
-      Phase 2 — Stream the formatter LLM token-by-token via llm.astream().
-                 Tokens are piped directly to SSE so the client sees text appear
-                 progressively rather than waiting for the full response.
+    Real-time streaming via graph.astream_events():
 
-    Short responses (chitchat, clarification questions) skip Phase 2 and are
-    sent as a single chunk since they require no formatting.
+    astream_events(version="v2") runs the full LangGraph pipeline and emits
+    LangChain callback events as the graph executes.  We intercept
+    on_chat_model_stream events from the "rag" node and forward each content
+    token straight to SSE — the user sees the first word the moment the
+    synthesis LLM starts generating, 5-15 s before the graph would otherwise
+    finish and return.
+
+    Tool-calling iterations inside rag_node emit chunks with empty .content
+    (they carry tool_call_chunks instead), so filtering on non-empty content
+    automatically limits streaming to the final synthesis call only.
+
+    Non-RAG paths (chitchat, clarification questions, history-answered replies)
+    produce no rag-node tokens.  For those we collect the state update emitted
+    by the relevant node's on_chain_end event and send it as a single chunk.
     """
     chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
     created_time = int(time.time())
 
     try:
-        # ── Phase 1: run graph, skip formatter ──────────────────────────────
-        result = await asyncio.to_thread(
-            graph.invoke,
-            {"user_query": user_query, "messages": langchain_messages, "user_id": user_id,
-             "skip_formatter": True},
-            config={"configurable": {"thread_id": session_id}},
-        )
+        config = {"configurable": {"thread_id": session_id}}
+        inputs = {
+            "user_query": user_query,
+            "messages": langchain_messages,
+            "user_id": user_id,
+            "skip_formatter": True,  # prevent formatter from making its own LLM call
+        }
 
-        print(f"\n🔍 DEBUG generate_stream result keys: {list(result.keys())}")
-        print(f"📌 clarification_message: {result.get('clarification_message')}")
-        print(f"📌 semantic_chitchat: {result.get('semantic_chitchat')}")
+        role_sent = False      # have we sent {"role": "assistant"} yet?
+        rag_tokens_sent = False  # did we stream any RAG synthesis tokens?
+        node_outputs: dict = {}  # last on_chain_end output per graph node
 
-        semantic_chitchat: bool = result.get("semantic_chitchat", False)
-        clarification_msg: str = result.get("clarification_message") or ""
-        awaiting_clarification: bool = result.get("awaiting_clarification", False)
+        async for event in graph.astream_events(inputs, config=config, version="v2"):
+            kind = event["event"]
 
-        rag_output = result.get("rag_output") or {}
-        rag_answer: str = (
-            rag_output.get("final_answer", "") if isinstance(rag_output, dict)
-            else getattr(rag_output, "final_answer", "")
-        )
+            # ── Capture each node's output for the non-RAG fallback ──────────
+            if kind == "on_chain_end":
+                node = event.get("metadata", {}).get("langgraph_node", "")
+                if node:
+                    out = event["data"].get("output")
+                    if isinstance(out, dict):
+                        node_outputs[node] = out
 
-        evaluation = result.get("evaluation") or {}
-        confidence: float = (
-            evaluation.get("confidence_score", 0.8) if isinstance(evaluation, dict)
-            else getattr(evaluation, "confidence_score", 0.8)
-        )
+            # ── Stream RAG synthesis tokens ───────────────────────────────────
+            if kind != "on_chat_model_stream":
+                continue
+            if event.get("metadata", {}).get("langgraph_node") != "rag":
+                continue
 
-        # ── Determine content to format ──────────────────────────────────────
-        # Chitchat and clarification questions need no formatting — send as-is.
-        if semantic_chitchat or (clarification_msg and awaiting_clarification):
-            print("📄 Streaming chitchat/clarification directly (no formatter)")
-            final_response = clarification_msg
+            chunk = event["data"]["chunk"]
+            token: str = chunk.content if hasattr(chunk, "content") else ""
+            if not token:
+                # Tool-call chunk (content is empty); skip silently.
+                continue
+
+            if not role_sent:
+                yield _sse_chunk(chunk_id, created_time, model, delta={"role": "assistant"})
+                role_sent = True
+
+            rag_tokens_sent = True
+            yield _sse_chunk(chunk_id, created_time, model, delta={"content": token})
+
+        # ── Non-RAG path: chitchat / clarification / history-answered ─────────
+        if not rag_tokens_sent:
+            semantic_out = node_outputs.get("semantic", {})
+            clarification_out = node_outputs.get("clarification", {})
+
+            semantic_chitchat: bool = semantic_out.get("semantic_chitchat", False)
+            awaiting_clarification: bool = (
+                clarification_out.get("awaiting_clarification")
+                or semantic_out.get("awaiting_clarification", False)
+            )
+            clarification_msg: str = (
+                clarification_out.get("clarification_message")
+                or semantic_out.get("clarification_message")
+                or ""
+            )
+
+            print(f"📄 Non-RAG path — chitchat={semantic_chitchat} "
+                  f"awaiting={awaiting_clarification} msg={bool(clarification_msg)}")
+
+            final_response = clarification_msg or "I couldn't generate a response."
             yield _sse_chunk(chunk_id, created_time, model, delta={"role": "assistant"})
             yield _sse_chunk(chunk_id, created_time, model, delta={"content": final_response})
-            yield _sse_chunk(chunk_id, created_time, model, delta={}, finish_reason="stop")
-            yield "data: [DONE]\n\n"
-            return
-
-        # Direct answer from semantic node (e.g. answered from history) or RAG answer.
-        text_to_format = (
-            clarification_msg if (clarification_msg and not awaiting_clarification)
-            else rag_answer
-        )
-        if not text_to_format:
-            print("⚠️ No content to format")
-            yield _sse_chunk(chunk_id, created_time, model, delta={"role": "assistant"})
-            yield _sse_chunk(chunk_id, created_time, model, delta={}, finish_reason="stop")
-            yield "data: [DONE]\n\n"
-            return
-
-        # ── Phase 2: stream formatter LLM token-by-token ─────────────────────
-        print(f"📄 Streaming formatter output ({len(text_to_format)} chars to format)")
-        prompt = build_formatter_prompt(user_query, text_to_format, confidence)
-        llm = create_llm()
-
-        # CRITICAL: send role first — LibreChat needs this for markdown rendering
-        yield _sse_chunk(chunk_id, created_time, model, delta={"role": "assistant"})
-
-        async for chunk in llm.astream(prompt):
-            token: str = chunk.content if hasattr(chunk, "content") else str(chunk)
-            if token:
-                yield _sse_chunk(chunk_id, created_time, model, delta={"content": token})
 
         yield _sse_chunk(chunk_id, created_time, model, delta={}, finish_reason="stop")
         yield "data: [DONE]\n\n"
