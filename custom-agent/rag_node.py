@@ -383,8 +383,29 @@ CRITICAL:
                 if hasattr(msg, 'content') and isinstance(msg.content, str):
                     msg.content = filter_sensitive_content(msg.content)
                 filtered_messages.append(msg)
-            
-            response = llm_with_tools.invoke(filtered_messages)
+
+            # Stream the LLM response so synthesis tokens print live.
+            # Azure OpenAI always returns EITHER tool-call chunks OR content
+            # chunks — never both — so the first content token reliably signals
+            # the final synthesis iteration.  Tool-calling iterations are
+            # accumulated silently (no content to print).
+            accumulated = None
+            is_synthesis = False
+            for chunk in llm_with_tools.stream(filtered_messages):
+                if accumulated is None:
+                    accumulated = chunk
+                else:
+                    accumulated = accumulated + chunk
+                if chunk.content:
+                    if not is_synthesis:
+                        print(f"\n{'─'*60}")
+                        print("🔄 Streaming synthesis...")
+                        print(f"{'─'*60}", flush=True)
+                        is_synthesis = True
+                    print(chunk.content, end="", flush=True)
+            if is_synthesis:
+                print()  # trailing newline after streamed content
+            response = accumulated
 
         except ValueError as e:
             if "content filter" in str(e).lower():
