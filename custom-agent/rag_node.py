@@ -258,7 +258,6 @@ DO SEARCH IF: different topic/entity | no relevant history | user asks for "upda
 IF SKIPPING:
   → Start: "Based on our previous discussion..." or "As I just mentioned..."
   → retrieved_docs: [] | total_searches: 0 | reasoning: "Used previous [reason]"
-
 ---
 
 STEP 1: Assess Query Scope
@@ -314,10 +313,10 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
    → Use filter with locationMetadata/pageNumber.
 
 4. SUMMARIZATION ("Summarize document X", "Summarize these documents", "Summarize observations in document X", "Summarize section in X"):
-   → ALWAYS treat summarization as a NEW structured task.
    → Identify file category(file_category_ai) from user query or memory (use azure_ai_search with selectFields to find it when unknown).
-   → MANDATORY: Call get_summarization_schema(file_category_ai) to get slots + section_hints; use them to target retrieval.
-   → Retrieve chunks with filter + selectFields as above; paginate top_k=100.
+   → Call get_summarization_schema(file_category_ai) to get slots + section_hints; use them to target retrieval.
+   → Check totalCount. If <= 300: paginate to read all (skip=100, skip=200).
+  → If > 300: sample middle (skip=totalCount/2, top_k=100) and end (skip=totalCount-100, top_k=100). Max 4 calls total.
    → Compose a business report style answer using the slots and section_hints:
         - For each section, write in a business report style. Avoid single-line slot responses.
         - Include quantitative tables where applicable (e.g., metrics vs norms).
@@ -514,14 +513,11 @@ CRITICAL:
     print(f"Output Dict:\n{json.dumps(output.dict(), indent=2, default=str)}")
     print("-"*70)
     if output.retrieved_docs:
-        # Batch-write all docs in parallel using a thread pool (optimization #4).
-        # Each store.put() is an independent DB round-trip; parallelising removes
-        # the serial N × latency bottleneck.
-        import concurrent.futures
-
-        def _put_doc(d):
+        for i, d in enumerate(output.retrieved_docs):
             store.put(
-                namespace=("rag_memory", state.user_id, thread_id),
+                namespace=("rag_memory", state.user_id, thread_id),  # tuple namespace
+                # Stable key derived from content_path + pages — collision-free and
+                # idempotent (same doc retrieved again overwrites, not duplicates).
                 key=hashlib.sha256(
                     f"{d.content_path}|{d.pages}".encode()
                 ).hexdigest()[:24],
@@ -532,13 +528,9 @@ CRITICAL:
                     "description": safe_utf8(d.description),
                     "pages": d.pages,
                     "score": d.score,
-                },
+                }
             )
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(output.retrieved_docs), 8)) as pool:
-            list(pool.map(_put_doc, output.retrieved_docs))
-
-        print(f"📚 Stored {len(output.retrieved_docs)} RAG docs to PostgresStore (parallel)")
+        print(f"📚 Stored {len(output.retrieved_docs)} RAG docs to PostgresStore")
 
 
     return {
