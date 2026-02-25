@@ -1,5 +1,4 @@
 # persistence.py
-import asyncio
 import os
 from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
@@ -22,36 +21,7 @@ pool = ConnectionPool(
     kwargs=connection_kwargs
 )
 
-
-class _AsyncPostgresSaver(PostgresSaver):
-    """PostgresSaver extended with async method wrappers.
-
-    graph.astream_events() uses the async Pregel loop internally, which
-    calls aget_tuple / aput / aput_writes on the checkpointer.
-    PostgresSaver only implements the synchronous variants and raises
-    NotImplementedError for the async ones.  This subclass bridges the gap
-    by running each sync method in a thread pool via asyncio.to_thread —
-    no additional connection pool or driver changes required.
-    """
-
-    async def aget_tuple(self, config):
-        return await asyncio.to_thread(self.get_tuple, config)
-
-    async def aput(self, config, checkpoint, metadata, new_versions):
-        return await asyncio.to_thread(self.put, config, checkpoint, metadata, new_versions)
-
-    async def aput_writes(self, config, writes, task_id, task_path=""):
-        return await asyncio.to_thread(self.put_writes, config, writes, task_id, task_path)
-
-    async def alist(self, config, *, filter=None, before=None, limit=None):
-        items = await asyncio.to_thread(
-            list, self.list(config, filter=filter, before=before, limit=limit)
-        )
-        for item in items:
-            yield item
-
-
-checkpointer = _AsyncPostgresSaver(pool)
+checkpointer = PostgresSaver(pool)
 checkpointer.setup()
 
 
