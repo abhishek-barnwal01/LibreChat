@@ -5,13 +5,11 @@ from typing import Dict, Any, List
 from langchain_core.messages import ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
-from tools import azure_ai_search, get_embedding
+from tools import azure_ai_search
 from models import RAGOutput, RetrievedDoc, PipelineState
 import json
 import hashlib
 import pathlib
-import threading
-import concurrent.futures
 from memory_store import store
 from langgraph.types import RunnableConfig
 from utils import safe_utf8, sanitize_any, create_llm, filter_sensitive_content, execute_tool_calls
@@ -366,15 +364,6 @@ CRITICAL:
     max_iterations = 10
     response = None
 
-    # Pre-compute the embedding for enriched_query in a background thread.
-    # The first tool call (azure_ai_search) embeds this same string — by the time
-    # the first LLM iteration finishes (~3 s) and the tool call fires, the result
-    # is already in _embedding_cache.  Saves ~200-400 ms on the first search call.
-    if enriched_query:
-        threading.Thread(
-            target=get_embedding, args=(enriched_query,), daemon=True
-        ).start()
-
     for iteration in range(max_iterations):
         try:
             # 🔹 Filter sensitive content from messages before sending
@@ -383,19 +372,8 @@ CRITICAL:
                 if hasattr(msg, 'content') and isinstance(msg.content, str):
                     msg.content = filter_sensitive_content(msg.content)
                 filtered_messages.append(msg)
-
-            # Stream the LLM response so astream_events in app.py can intercept
-            # synthesis tokens in real-time and pipe them to SSE.
-            # Tool-calling iterations produce no content chunks (only tool-call
-            # chunks), so they are silently accumulated without affecting the
-            # user-visible stream.
-            accumulated = None
-            for chunk in llm_with_tools.stream(filtered_messages):
-                if accumulated is None:
-                    accumulated = chunk
-                else:
-                    accumulated = accumulated + chunk
-            response = accumulated
+            
+            response = llm_with_tools.invoke(filtered_messages)
 
         except ValueError as e:
             if "content filter" in str(e).lower():
@@ -535,41 +513,35 @@ CRITICAL:
     print(f"Output Dict:\n{json.dumps(output.dict(), indent=2, default=str)}")
     print("-"*70)
     if output.retrieved_docs:
-        # Store docs in a background thread so the formatter can start immediately.
-        # Doc storage is for future-request memory only — the current response doesn't
-        # depend on it. Fire-and-forget saves 200-500 ms of blocked wall-clock time.
+        # Batch-write all docs in parallel using a thread pool.
+        # Each store.put() is an independent DB round-trip; parallelising removes
+        # the serial N × latency bottleneck.
+        import concurrent.futures
+
         _ns = ("rag_memory", state.user_id, thread_id)
-        docs_snapshot = list(output.retrieved_docs)  # capture before thread runs
 
-        def _store_docs_bg():
-            try:
-                def _put_one(d):
-                    store.put(
-                        namespace=_ns,
-                        key=hashlib.sha256(
-                            f"{d.content_path}|{d.pages}".encode()
-                        ).hexdigest()[:24],
-                        value={
-                            "type": "retrieved_doc",
-                            "filename": safe_utf8(d.filename),
-                            "content_path": safe_utf8(d.content_path),
-                            "description": safe_utf8(d.description),
-                            "pages": d.pages,
-                            "score": d.score,
-                        },
-                    )
+        def _put_doc(d):
+            store.put(
+                namespace=_ns,
+                key=hashlib.sha256(
+                    f"{d.content_path}|{d.pages}".encode()
+                ).hexdigest()[:24],
+                value={
+                    "type": "retrieved_doc",
+                    "filename": safe_utf8(d.filename),
+                    "content_path": safe_utf8(d.content_path),
+                    "description": safe_utf8(d.description),
+                    "pages": d.pages,
+                    "score": d.score,
+                },
+            )
 
-                with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=min(len(docs_snapshot), 8)
-                ) as pool:
-                    list(pool.map(_put_one, docs_snapshot))
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(len(output.retrieved_docs), 8)
+        ) as pool:
+            list(pool.map(_put_doc, output.retrieved_docs))
 
-                print(f"📚 [bg] Stored {len(docs_snapshot)} RAG docs to PostgresStore")
-            except Exception as _e:
-                print(f"⚠️ [bg] Doc storage failed: {_e}")
-
-        threading.Thread(target=_store_docs_bg, daemon=True).start()
-        print(f"📚 Doc storage dispatched to background ({len(output.retrieved_docs)} docs)")
+        print(f"📚 Stored {len(output.retrieved_docs)} RAG docs to PostgresStore (parallel)")
 
 
     return {
