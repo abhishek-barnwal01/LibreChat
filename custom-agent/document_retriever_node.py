@@ -350,21 +350,13 @@ the clarifying message as your final text response.
     # Avoid keyword heuristics ("which", "available", "?") — they match normal result text too.
     llm_final_text = (response.content.strip() if response and response.content else "")
 
-    # Detect COUNT/aggregate results (no document_title column) — LLM handles those better
-    is_aggregate = last_tool_rows and not any(
-        "document_title" in row for row in last_tool_rows
-    )
-
-    if not last_tool_rows or is_aggregate:
-        # No SQL results, OR aggregate query (COUNT etc.) — use LLM's text response
-        if is_aggregate:
-            print("📊 Aggregate result detected — using LLM's summary text")
-        else:
-            print("💬 Using LLM's clarification/explanation text")
+    if not last_tool_rows:
+        # No SQL results — LLM produced either a clarification question or a no-results message
+        print("💬 Using LLM's clarification/explanation text")
         final_response = llm_final_text or "No documents found matching your query."
         listed_docs = []
     elif last_tool_rows:
-        # Normal case — rows with document_title → format in Python
+        # Normal case — format document rows in Python
         listed_docs = last_tool_rows
         lines = [f"Found **{len(listed_docs)}** document(s) matching your query.\n"]
 
@@ -443,9 +435,9 @@ the clarifying message as your final text response.
     )
     all_new_messages.append(ai_message)
 
-    # If no rows (or aggregate result) and LLM asked a question, flag state so
+    # If no rows were returned and the LLM asked a question, flag the state so
     # semantic_node routes the user's next reply straight back here (issue 5 fix).
-    is_asking_clarification = (not listed_docs) and ("?" in final_response)
+    is_asking_clarification = (not last_tool_rows) and ("?" in final_response)
 
     return {
         "messages": sanitize_any(all_new_messages),
