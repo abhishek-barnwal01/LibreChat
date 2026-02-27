@@ -79,6 +79,30 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     # CLARIFICATION RESPONSE MODE: Skip intent classification
     # ========================================================================
 
+    # ========================================================================
+    # LISTING CLARIFICATION MODE: user responding to a document_retriever question
+    # (e.g. "which product category did you mean?") — skip intent classification
+    # and route straight back to document_retriever with the user's refined query.
+    # ========================================================================
+    if awaiting_clarification and state.task_type == "listing":
+        print("\n" + "-" * 70)
+        print("🔄 LISTING CLARIFICATION RESPONSE — routing back to document_retriever")
+        print(f"   Refined query: '{user_query}'")
+        print("-" * 70)
+        return {
+            "messages": sanitize_any([]),
+            "user_memories": sanitize_any(user_memories),
+            "enriched_query": safe_utf8(user_query),
+            "task_type": "listing",
+            "clarification_message": None,
+            "semantic_chitchat": False,
+            "awaiting_clarification": False,
+            "previous_ambiguity": None,
+            "domain_context": None,
+            "ambiguity_detected": sanitize_any(AmbiguityInfo(ambiguous=False).model_dump()),
+            "document_category": None,
+        }
+
     if awaiting_clarification and previous_ambiguity:
         print("\n" + "-" * 70)
         print("🔄 CLARIFICATION RESPONSE DETECTED")
@@ -341,8 +365,10 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             "ambiguity_detected": sanitize_any(
                 output.ambiguity_detected.model_dump()
             ),
+            "task_type": None,        # clear any stale "listing" from a prior turn
+            "document_category": None,
         }
-    
+
     # ========================================================================
     # STEP 2C: DOCUMENT_LISTING - Route to SQL-based document retriever
     # ========================================================================
@@ -639,4 +665,6 @@ OUTPUT:
                 if output.ambiguity_detected
                 else None
             ),
+            "task_type": None,        # clear any stale "listing" from a prior turn
+            "document_category": None,
         }
