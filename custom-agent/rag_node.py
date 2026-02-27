@@ -513,35 +513,38 @@ CRITICAL:
     print(f"Output Dict:\n{json.dumps(output.dict(), indent=2, default=str)}")
     print("-"*70)
     if output.retrieved_docs:
-        # Batch-write all docs in parallel using a thread pool.
-        # Each store.put() is an independent DB round-trip; parallelising removes
-        # the serial N × latency bottleneck.
-        import concurrent.futures
-
         _ns = ("rag_memory", state.user_id, thread_id)
+        print(f"📚 Storing {len(output.retrieved_docs)} RAG docs to PostgresStore "
+              f"(namespace: {_ns})")
 
         def _put_doc(d):
-            store.put(
-                namespace=_ns,
-                key=hashlib.sha256(
-                    f"{d.content_path}|{d.pages}".encode()
-                ).hexdigest()[:24],
-                value={
-                    "type": "retrieved_doc",
-                    "filename": safe_utf8(d.filename),
-                    "content_path": safe_utf8(d.content_path),
-                    "description": safe_utf8(d.description),
-                    "pages": d.pages,
-                    "score": d.score,
-                },
-            )
+            try:
+                store.put(
+                    namespace=_ns,
+                    key=hashlib.sha256(
+                        f"{d.content_path}|{d.pages}".encode()
+                    ).hexdigest()[:24],
+                    value={
+                        "type": "retrieved_doc",
+                        "filename": safe_utf8(d.filename),
+                        "content_path": safe_utf8(d.content_path),
+                        "description": safe_utf8(d.description),
+                        "pages": d.pages,
+                        "score": d.score,
+                    },
+                )
+            except Exception as e:
+                print(f"  ⚠️ store.put failed for {d.filename}: {e}")
 
+        import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=min(len(output.retrieved_docs), 8)
-        ) as pool:
-            list(pool.map(_put_doc, output.retrieved_docs))
+        ) as _tpe:
+            list(_tpe.map(_put_doc, output.retrieved_docs))
 
-        print(f"📚 Stored {len(output.retrieved_docs)} RAG docs to PostgresStore (parallel)")
+        print(f"📚 Stored {len(output.retrieved_docs)} RAG docs to PostgresStore")
+    else:
+        print("📚 No retrieved_docs to store in memory")
 
 
     return {
