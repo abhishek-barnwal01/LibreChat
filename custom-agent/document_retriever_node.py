@@ -445,4 +445,7 @@ the clarifying message as your final text response.
         "clarification_message": safe_utf8(final_response),  # For app.py response chain
         "semantic_chitchat": False,
         "awaiting_clarification": is_asking_clarification,
+        # Clear stale RAG output from previous turns so generate_stream's
+        # `doc_listing_response and not rag_answer` guard evaluates correctly.
+        "rag_output": None,
     }
