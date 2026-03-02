@@ -94,6 +94,19 @@ function parseXmlBlobs(xmlText) {
  * Query Databricks for distinct values of a single column.
  */
 async function queryDatabricksColumn(column) {
+  if (!DATABRICKS_HOST || !DATABRICKS_TOKEN || !DATABRICKS_WAREHOUSE_ID) {
+    throw new Error(
+      'Missing Databricks env vars: ' +
+        [
+          !DATABRICKS_HOST && 'DATABRICKS_HOST',
+          !DATABRICKS_TOKEN && 'DATABRICKS_TOKEN',
+          !DATABRICKS_WAREHOUSE_ID && 'DATABRICKS_WAREHOUSE_ID',
+        ]
+          .filter(Boolean)
+          .join(', '),
+    );
+  }
+
   const response = await axios.post(
     `${DATABRICKS_HOST}/api/2.0/sql/statements`,
     {
@@ -212,10 +225,18 @@ router.get('/filter-options', requireJwtAuth, async (req, res) => {
     res.json(filterOptions);
     logger.info('[KnowledgeBase] Successfully fetched filter options from Databricks');
   } catch (error) {
-    logger.error('[KnowledgeBase] Error fetching filter options from Databricks:', error.message);
+    const errMsg = error.message || 'Unknown error';
+    const errCode = error.code || '';
+    const httpStatus = error.response?.status;
+    const respBody = error.response?.data
+      ? JSON.stringify(error.response.data).slice(0, 300)
+      : '';
+    logger.error(
+      `[KnowledgeBase] Error fetching filter options from Databricks: ${errMsg} | code=${errCode} | httpStatus=${httpStatus} | body=${respBody}`,
+    );
     res.status(500).json({
       error: 'Failed to fetch filter options from Databricks',
-      message: error.message,
+      message: errMsg,
     });
   }
 });
