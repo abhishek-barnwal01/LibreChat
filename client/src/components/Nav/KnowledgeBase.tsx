@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, FileText, Download, Search, SlidersHorizontal, ChevronDown } from 'lucide-react';
-import { useGetBlobListQuery, useGetFilterOptionsQuery } from '~/data-provider';
+import { useGetBlobListQuery, useGetFilterOptionsQuery, type BlobDocument } from '~/data-provider';
 import { cn } from '~/utils';
 
 /** Extract just the filename from a blob path like "soaps/filename.pdf" */
@@ -247,7 +247,7 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
 
   // Helper: apply a single filter to a document set
   const applyFilter = useCallback(
-    (docs: typeof data.documents, filterKey: string, values: string[]) => {
+    (docs: BlobDocument[], filterKey: string, values: string[]) => {
       if (DATABRICKS_FILTER_KEYS.has(filterKey)) {
         // Contains matching: split compound blob values and check segments
         return docs.filter((doc) => matchesDatabricksFilter(doc.metadata?.[filterKey], values));
