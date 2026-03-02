@@ -13,6 +13,24 @@ const SAS_TOKEN =
 // Folders to include in the knowledge base listing
 const FOLDERS = ['soaps/', 'Household_Insecticides/'];
 
+// Databricks configuration (from environment variables)
+const DATABRICKS_HOST = process.env.DATABRICKS_HOST;
+const DATABRICKS_TOKEN = process.env.DATABRICKS_TOKEN;
+const DATABRICKS_WAREHOUSE_ID = process.env.DATABRICKS_WAREHOUSE_ID;
+const DATABRICKS_TABLE = 'hive_metastore.silver.silver_deterministic_ai_document_data';
+const DATABRICKS_FILTER_COLUMNS = [
+  'file_category_det',
+  'product_category_det',
+  'file_time_period_det',
+  'country_det',
+  'brand_det',
+];
+
+// In-memory cache for Databricks filter options
+let filterOptionsCache = null;
+let filterOptionsCacheTime = 0;
+const FILTER_OPTIONS_CACHE_TTL = 1000 * 60 * 60; // 1 hour
+
 /**
  * Build an Azure List Blobs URL for a given folder prefix, including metadata.
  */
@@ -73,6 +91,39 @@ function parseXmlBlobs(xmlText) {
 }
 
 /**
+ * Query Databricks for distinct values of a single column.
+ */
+async function queryDatabricksColumn(column) {
+  const response = await axios.post(
+    `${DATABRICKS_HOST}/api/2.0/sql/statements`,
+    {
+      warehouse_id: DATABRICKS_WAREHOUSE_ID,
+      statement: `SELECT DISTINCT \`${column}\` FROM ${DATABRICKS_TABLE} WHERE \`${column}\` IS NOT NULL AND TRIM(\`${column}\`) != '' ORDER BY \`${column}\``,
+      wait_timeout: '30s',
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${DATABRICKS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 60000,
+    },
+  );
+
+  if (response.data?.status?.state !== 'SUCCEEDED') {
+    throw new Error(
+      `Databricks query for ${column} did not succeed: ${response.data?.status?.state}`,
+    );
+  }
+
+  const rows = response.data?.result?.data_array || [];
+  const excludedLower = new Set(['na', 'n/a', 'null', '']);
+  return rows
+    .map((row) => (row[0] || '').trim())
+    .filter((val) => val && !excludedLower.has(val.toLowerCase()));
+}
+
+/**
  * GET /api/knowledge-base/blobs
  * Proxy endpoint to fetch blob list from Azure Storage.
  * Fetches from multiple folders in parallel and merges results.
@@ -126,6 +177,46 @@ router.get('/blobs', requireJwtAuth, async (req, res) => {
         message: error.message,
       });
     }
+  }
+});
+
+/**
+ * GET /api/knowledge-base/filter-options
+ * Fetches clean, distinct filter values from Databricks.
+ * Results are cached in memory for 1 hour.
+ */
+router.get('/filter-options', requireJwtAuth, async (req, res) => {
+  try {
+    // Return cached results if fresh
+    if (filterOptionsCache && Date.now() - filterOptionsCacheTime < FILTER_OPTIONS_CACHE_TTL) {
+      logger.info('[KnowledgeBase] Returning cached filter options from Databricks');
+      return res.json(filterOptionsCache);
+    }
+
+    logger.info('[KnowledgeBase] Fetching filter options from Databricks');
+
+    // Query all columns in parallel
+    const results = await Promise.all(
+      DATABRICKS_FILTER_COLUMNS.map(async (column) => {
+        const values = await queryDatabricksColumn(column);
+        return [column, values];
+      }),
+    );
+
+    const filterOptions = Object.fromEntries(results);
+
+    // Cache the results
+    filterOptionsCache = filterOptions;
+    filterOptionsCacheTime = Date.now();
+
+    res.json(filterOptions);
+    logger.info('[KnowledgeBase] Successfully fetched filter options from Databricks');
+  } catch (error) {
+    logger.error('[KnowledgeBase] Error fetching filter options from Databricks:', error.message);
+    res.status(500).json({
+      error: 'Failed to fetch filter options from Databricks',
+      message: error.message,
+    });
   }
 });
 
