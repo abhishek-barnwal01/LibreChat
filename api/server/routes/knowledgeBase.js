@@ -91,9 +91,10 @@ function parseXmlBlobs(xmlText) {
 }
 
 /**
- * Query Databricks for distinct values of a single column.
+ * Execute a Databricks SQL statement via the SQL Statement Execution API.
+ * Handles warehouse cold-start by polling for up to ~3 minutes.
  */
-async function queryDatabricksColumn(column) {
+async function executeDatabricksStatement(statement) {
   if (!DATABRICKS_HOST || !DATABRICKS_TOKEN || !DATABRICKS_WAREHOUSE_ID) {
     throw new Error(
       'Missing Databricks env vars: ' +
@@ -107,29 +108,74 @@ async function queryDatabricksColumn(column) {
     );
   }
 
-  const response = await axios.post(
+  const headers = {
+    Authorization: `Bearer ${DATABRICKS_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
+
+  // Submit the statement; wait_timeout=0s returns immediately with a statement_id
+  const submitResp = await axios.post(
     `${DATABRICKS_HOST}/api/2.0/sql/statements`,
     {
       warehouse_id: DATABRICKS_WAREHOUSE_ID,
-      statement: `SELECT DISTINCT \`${column}\` FROM ${DATABRICKS_TABLE} WHERE \`${column}\` IS NOT NULL AND TRIM(\`${column}\`) != '' ORDER BY \`${column}\``,
-      wait_timeout: '30s',
+      statement,
+      wait_timeout: '0s',
     },
-    {
-      headers: {
-        Authorization: `Bearer ${DATABRICKS_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: 60000,
-    },
+    { headers, timeout: 30000 },
   );
 
-  if (response.data?.status?.state !== 'SUCCEEDED') {
+  const statementId = submitResp.data?.statement_id;
+  const initialState = submitResp.data?.status?.state;
+
+  // If it completed immediately (warehouse was warm), return the result
+  if (initialState === 'SUCCEEDED') {
+    return submitResp.data;
+  }
+  if (initialState === 'FAILED' || initialState === 'CANCELED' || initialState === 'CLOSED') {
     throw new Error(
-      `Databricks query for ${column} did not succeed: ${response.data?.status?.state}`,
+      `Databricks statement ${initialState}: ${JSON.stringify(submitResp.data?.status?.error)}`,
     );
   }
 
-  const rows = response.data?.result?.data_array || [];
+  // Poll for completion (handles PENDING state during warehouse cold-start)
+  // Retry up to 18 times with 10s intervals = ~3 minutes max wait
+  const MAX_POLLS = 18;
+  const POLL_INTERVAL_MS = 10000;
+
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+
+    const pollResp = await axios.get(
+      `${DATABRICKS_HOST}/api/2.0/sql/statements/${statementId}`,
+      { headers, timeout: 30000 },
+    );
+
+    const state = pollResp.data?.status?.state;
+    if (state === 'SUCCEEDED') {
+      return pollResp.data;
+    }
+    if (state === 'FAILED' || state === 'CANCELED' || state === 'CLOSED') {
+      throw new Error(
+        `Databricks statement ${state}: ${JSON.stringify(pollResp.data?.status?.error)}`,
+      );
+    }
+
+    logger.info(
+      `[KnowledgeBase] Databricks statement ${statementId} still ${state}, poll ${i + 1}/${MAX_POLLS}`,
+    );
+  }
+
+  throw new Error(`Databricks statement ${statementId} timed out after ${MAX_POLLS * POLL_INTERVAL_MS / 1000}s`);
+}
+
+/**
+ * Query Databricks for distinct values of a single column.
+ */
+async function queryDatabricksColumn(column) {
+  const statement = `SELECT DISTINCT \`${column}\` FROM ${DATABRICKS_TABLE} WHERE \`${column}\` IS NOT NULL AND TRIM(\`${column}\`) != '' ORDER BY \`${column}\``;
+  const data = await executeDatabricksStatement(statement);
+
+  const rows = data?.result?.data_array || [];
   const excludedLower = new Set(['na', 'n/a', 'null', '']);
   return rows
     .map((row) => (row[0] || '').trim())
