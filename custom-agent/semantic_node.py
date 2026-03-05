@@ -45,12 +45,14 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     thread_id = config.get("configurable", {}).get("thread_id", "default")
     # Step 1: Load user memories from PostgresStore (once — rag_node reuses via state)
     try:
-        _ns = ("rag_memory", user_id, thread_id)
-        _raw_items = store.search(_ns, query=None, limit=10)
+        _raw_items = store.search(
+            ("rag_memory", user_id, thread_id),
+            query=None,
+            limit=10,
+        )
+        # Convert store Item objects to plain dicts so they serialise cleanly in PipelineState
         user_memories = [item.value for item in _raw_items] if _raw_items else []
-        print(f"📚 Loaded {len(user_memories)} user memories "
-              f"(namespace: {_ns}, raw_items type: {type(_raw_items).__name__}, "
-              f"raw count: {len(_raw_items) if hasattr(_raw_items, '__len__') else '?'})")
+        print(f"📚 Loaded {len(user_memories)} user memories")
     except Exception as e:
         print(f"⚠️ Could not load memories: {e}")
         user_memories = []
