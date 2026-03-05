@@ -20,6 +20,18 @@ with open(_SCHEMAS_PATH) as _f:
     _SUMMARIZATION_SCHEMAS: dict = json.load(_f)
 
 
+
+# Keywords that signal the user wants a chart or graph — routes to formatter_node.
+_CHART_KEYWORDS = frozenset({
+    'chart', 'graph', 'plot', 'visualize', 'visualise', 'visualization', 'visualisation',
+    'bar chart', 'pie chart', 'bar graph', 'line graph', 'line chart', 'trend chart',
+    'draw', 'diagram', 'mermaid',
+})
+
+def _wants_chart(query: str) -> bool:
+    q = query.lower()
+    return any(kw in q for kw in _CHART_KEYWORDS)
+
 @tool
 def get_summarization_schema(file_category_ai: str) -> str:
     """
@@ -544,7 +556,11 @@ CRITICAL:
         print(f"📚 Stored {len(output.retrieved_docs)} RAG docs to PostgresStore (parallel)")
 
 
+    needs_formatter = _wants_chart(user_query) or _wants_chart(enriched_query or "")
+    print(f"📊 needs_formatter: {needs_formatter}")
+
     return {
         "messages": sanitize_any(all_new_messages),
         "rag_output": sanitize_any(output.dict()),
+        "needs_formatter": needs_formatter,
     }
