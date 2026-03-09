@@ -225,21 +225,40 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
                 )
                 print(f"✅ Pre-loaded schema for '{document_category}'")
             else:
-                # Category not in schemas — tell the agent which categories exist
+                # Category not in schemas — enforce the correct 3-step discovery flow.
+                # Do NOT say "call get_summarization_schema FIRST": when history contains
+                # topic-related context (e.g. "843 link test reports") the LLM becomes
+                # overconfident, guesses a wrong category name ("Link testing" vs "Link Test"),
+                # skips the discovery search, and then never applies the document_title filter.
                 available = list(_SUMMARIZATION_SCHEMAS.keys())
                 schema_injection = (
-                    f"This is a summarization task. Call get_summarization_schema first "
-                    f"with the best-matching category. Available: {available}."
+                    f"This is a summarization task (hinted category: '{document_category}'). "
+                    f"Follow these steps in order:\n"
+                    f"STEP 1 — Discover: call azure_ai_search with the document filename as query, "
+                    f"top_k=5, select_fields='document_title,file_category_ai,content_path' "
+                    f"to find the document's exact file_category_ai.\n"
+                    f"STEP 2 — Schema: call get_summarization_schema with the exact file_category_ai "
+                    f"value returned in Step 1. Available categories: {available}.\n"
+                    f"STEP 3 — Fetch: call azure_ai_search with "
+                    f"filter='document_title eq \"<filename>\" and text_document_id ne \"\"' "
+                    f"top_k=100 select_fields='content_text,document_title,content_path,locationMetadata' "
+                    f"to retrieve all document content."
                 )
                 print(f"⚠️  No schema for '{document_category}', injecting category hint")
         else:
-            # Category unknown — let the agent discover and call the tool
+            # Category unknown — same 3-step flow, infer category from document name
             available = list(_SUMMARIZATION_SCHEMAS.keys())
             schema_injection = (
-                f"This is a summarization task. Your FIRST tool call must be "
-                f"get_summarization_schema(file_category_ai). "
-                f"Available categories: {available}. "
-                f"Infer the best match from the document name or context."
+                f"This is a summarization task. Follow these steps in order:\n"
+                f"STEP 1 — Discover: call azure_ai_search with the document filename as query, "
+                f"top_k=5, select_fields='document_title,file_category_ai,content_path' "
+                f"to find the document's exact file_category_ai.\n"
+                f"STEP 2 — Schema: call get_summarization_schema with the exact file_category_ai "
+                f"value returned in Step 1. Available categories: {available}.\n"
+                f"STEP 3 — Fetch: call azure_ai_search with "
+                f"filter='document_title eq \"<filename>\" and text_document_id ne \"\"' "
+                f"top_k=100 select_fields='content_text,document_title,content_path,locationMetadata' "
+                f"to retrieve all document content."
             )
             print("⚠️  Summarization task but no document_category — injecting tool-call instruction")
 
