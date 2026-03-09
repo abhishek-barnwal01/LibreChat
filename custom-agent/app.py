@@ -342,17 +342,21 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
         )
         clarification_msg: str = state.get("clarification_message") or ""
         awaiting_clarification: bool = state.get("awaiting_clarification", False)
+        semantic_chitchat: bool = state.get("semantic_chitchat", False)
         rag_out = state.get("rag_output") or {}
         rag_answer: str = (
             rag_out.get("final_answer", "") if isinstance(rag_out, dict)
             else getattr(rag_out, "final_answer", "")
         )
 
-        # Priority: listing > clarification > rag fallback
-        if doc_listing_response and not rag_answer:
-            final_response = doc_listing_response
-        elif clarification_msg and awaiting_clarification:
+        # Priority (mirrors old generate_stream logic):
+        # 1. chitchat / clarification — always wins, prevents stale listing bleed-through
+        # 2. document listing (only current-turn — rag_answer empty = listing is the answer)
+        # 3. rag answer or direct semantic answer
+        if semantic_chitchat or (clarification_msg and awaiting_clarification):
             final_response = clarification_msg
+        elif doc_listing_response and not rag_answer:
+            final_response = doc_listing_response
         else:
             final_response = clarification_msg or rag_answer
 
