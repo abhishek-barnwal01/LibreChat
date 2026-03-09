@@ -265,19 +265,20 @@ PREVIOUSLY RETRIEVED DOCUMENTS:
 {memories_text}
 
 ---
-PHASE 0: CHECK HISTORY FIRST (MANDATORY)
+PHASE 0: REPEAT-QUESTION SHORTCUT (narrow use only)
 ---
-BEFORE searching, check if answer already exists:
+SKIP search ONLY when the user is repeating the EXACT SAME question they just asked
+and you already answered it in the immediately preceding exchange.
 
-SKIP SEARCH IF: query identical to last few messages | answer in recent history | follow-up on same docs/topic
-DO SEARCH IF: different topic/entity | no relevant history | user asks for "updated" info
+NEVER SKIP when:
+- The current question is on a different topic than the previous answer
+- The user is asking about document content (summarization, insights, "what does X say")
+- The current query has any new entity, metric, or document name not in the last answer
+- You are not 100% certain the last answer directly addresses the current question
 
-NEVER SKIP FOR: summarization | "summarize X" | "what does doc X say" | any task where document content is needed.
-Document content is NEVER stored in conversation history — always search for it.
-
-IF SKIPPING:
-  → Start: "Based on our previous discussion..." or "As I just mentioned..."
-  → retrieved_docs: [] | total_searches: 0 | reasoning: "Used previous [reason]"
+IF SKIPPING (exact repeat only):
+  → Start: "As I just mentioned..." then restate the answer concisely
+  → retrieved_docs: [] | total_searches: 0
 ---
 
 STEP 1: Assess Query Scope
