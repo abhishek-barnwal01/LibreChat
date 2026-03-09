@@ -366,18 +366,8 @@ CRITICAL:
         ]
     )
 
-    # Pass only HumanMessages as conversation history to the RAG LLM.
-    # AI responses in state.messages (chitchat replies, doc-retriever answers, etc.)
-    # can contain facts like "843 link test reports" that anchor the LLM's tool-call
-    # strategy and final synthesis, causing it to return stale answers even after
-    # performing fresh searches.  The current query is already injected below via
-    # {user_query}/{enriched_query}, so we exclude the last message (the current
-    # HumanMessage) to avoid duplicating it.
-    from langchain_core.messages import HumanMessage as _HM
-    history_for_rag = [m for m in messages[:-1] if isinstance(m, _HM)]
-
     initial_messages = prompt.format_messages(
-        user_query=user_query, enriched_query=enriched_query, messages=history_for_rag, memories_text=memories_text
+        user_query=user_query, enriched_query=enriched_query, messages=messages, memories_text=memories_text
     )
 
     agent_messages = list(initial_messages)
