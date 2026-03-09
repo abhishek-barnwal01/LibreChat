@@ -296,22 +296,16 @@ STEP 1: Assess Query Scope
 - Establish relevance criteria for document selection
 
 STEP 2: Execute Strategic Search
-Call tool: azure ai search
-Search Strategy Guidelines:
-- Formulate queries as KEYWORD EXPANSIONS, not natural-language phrases.
-  Good: `"Lux" growth share sales market performance`
-  Bad:  `Lux soap market share`
-  Reason: Azure AI Search ranks on keyword overlap. Multi-keyword queries match docs that
-  use "sales", "penetration", "volume", "gains", "decline", etc. — not just those containing
-  the exact phrase. More keywords = broader recall.
-- For brand/entity queries: anchor on the brand name + expand with synonyms for the metric.
-  E.g. for "Lux growth%": `"Lux" growth volume share penetration gains decline`
-- ALWAYS do at least 2 searches for broad/multi-dimensional queries (e.g. "across all countries",
-  "across all categories", "latest data"). First search = broad terms; follow-up searches =
-  varied terms, different filters, or segment-level keywords to gather comprehensive coverage.
-- NEVER stop at one search if the first results are partial or older-period data. Try alternate
-  phrasings: e.g. if first search returns only India 2019 data, follow up with different keywords
-  covering segments, geographies, or alternate metric names.
+- Start with a focused, natural query. One search is enough when the first results are
+  clearly relevant and sufficient to answer the question.
+- Follow up with a second search only when:
+  • Results are partial, off-topic, or cover the wrong time period/geography
+  • The query is broad ("across all countries", "all categories", "latest data") and
+    one pass cannot capture full coverage
+  • Use different keywords, filters, or segment-level terms in the follow-up
+- For brand/metric queries where first results miss the mark, try keyword expansion:
+  quote the brand for exact match and add metric synonyms.
+  E.g. `"Lux" growth volume share penetration gains decline`
 
 CRITICAL: selectFields USAGE
 - When LISTING documents (names, links, counts): use selectFields: "document_title,content_path"
