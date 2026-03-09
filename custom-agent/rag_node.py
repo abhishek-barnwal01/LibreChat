@@ -51,8 +51,9 @@ def get_summarization_schema(file_category_ai: str) -> str:
        - filter: file_category_ai eq '<value>' and text_document_id ne ''
        - selectFields: "content_text,document_title,content_path,locationMetadata"
        - paginate: top_k=100, skip as needed (max 4 calls)
-    4) Fill every slot from retrieved text. Set null for missing fields. Do not fabricate.
-    5) Return the filled schema as final_answer (pure JSON). Do NOT add narrative.
+    4) Use the slots and section_hints to guide retrieval and organise your answer.
+    5) Write the final answer as a business report in Markdown — prose paragraphs, section
+       headings, bullet lists, and tables. Do NOT output raw JSON.
 
     Examples:
     - get_summarization_schema("U&A")

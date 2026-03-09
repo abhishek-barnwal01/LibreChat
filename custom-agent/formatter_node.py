@@ -228,6 +228,9 @@ graph TD
 FORMAT THE PROVIDED ANSWER
 ==================================================
 
+⚠️ If the RAW answer above is JSON (starts with {{ or [), convert every field and nested
+value into readable prose / markdown sections. Never pass JSON through to the output.
+
 Provide your formatted response as markdown directly. Output pure markdown format without wrapping in JSON or code blocks.
 Do NOT include any preface like "Here's the polished..." or "Formatted response:". Begin directly with the content.
 Avoid meta commentary such as "Below is" or "Here is".
