@@ -263,17 +263,22 @@ PREVIOUSLY RETRIEVED DOCUMENTS:
 {memories_text}
 
 ---
-PHASE 0: CHECK HISTORY FIRST (MANDATORY)
+PHASE 0: REPEAT-QUESTION SHORTCUT (before any tool call only)
 ---
-BEFORE searching, check if answer already exists:
+SKIP search ONLY when the user repeats the exact same question from the immediately
+preceding exchange and you already answered it.
 
-SKIP SEARCH IF: query identical to last few messages | answer in recent history | follow-up on same docs/topic
-DO SEARCH IF: different topic/entity | no relevant history | user asks for "updated" info
-NEVER SKIP FOR: summarization | "summarize X" | "what does doc X say" | any task where document content is needed.
+NEVER SKIP when the current question differs in any way from the last question —
+even if the topic is similar. Always search for fresh content.
 
-IF SKIPPING:
-  → Start: "Based on our previous discussion..." or "As I just mentioned..."
-  → retrieved_docs: [] | total_searches: 0 | reasoning: "Used previous [reason]"
+⚠️  SYNTHESIS RULE: Once you have made any tool call and received results,
+your final answer MUST be composed from those tool results only.
+Never fall back to a prior AI response in the conversation history.
+Conversation history is context — it is never the answer to the current query.
+
+IF SKIPPING (exact repeat only):
+  → Start: "As I just mentioned..." then restate the answer
+  → retrieved_docs: [] | total_searches: 0
 ---
 
 STEP 1: Assess Query Scope
@@ -331,6 +336,8 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
         - DO NOT merge.
 
 SYNTHESIS RULES:
+- Answer the CURRENT enriched_query. Never answer an older question from the conversation history.
+- If tool calls were made this turn, base your answer ENTIRELY on those tool results — do not use any prior AI response as your answer.
 - Executive Summary (2-3 sentences), then Detailed Analysis with inline citations, then Key Takeaways (3-5 bullets).
 - Use business report formatting: clear section headings, bullet lists, and tables for numeric comparisons.
 - Avoid terse one-liners; provide explanatory sentences grounded in retrieved evidence.
