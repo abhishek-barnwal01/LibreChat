@@ -225,8 +225,6 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
                     f"  filter: document_title eq '<exact filename from user query>' and text_document_id ne ''\n"
                     f"  top_k: 100\n"
                     f"  select_fields: content_text,document_title,content_path,locationMetadata\n"
-                    f"Do NOT add geography filters (country_ai) or facets — retrieve by filename only.\n"
-                    f"If totalCount > 100, paginate (skip=100, skip=200 …) until all chunks are read."
                 )
                 print(f"✅ Pre-loaded schema for '{document_category}'")
             else:
@@ -265,20 +263,17 @@ PREVIOUSLY RETRIEVED DOCUMENTS:
 {memories_text}
 
 ---
-PHASE 0: REPEAT-QUESTION SHORTCUT (narrow use only)
+PHASE 0: CHECK HISTORY FIRST (MANDATORY)
 ---
-SKIP search ONLY when the user is repeating the EXACT SAME question they just asked
-and you already answered it in the immediately preceding exchange.
+BEFORE searching, check if answer already exists:
 
-NEVER SKIP when:
-- The current question is on a different topic than the previous answer
-- The user is asking about document content (summarization, insights, "what does X say")
-- The current query has any new entity, metric, or document name not in the last answer
-- You are not 100% certain the last answer directly addresses the current question
+SKIP SEARCH IF: query identical to last few messages | answer in recent history | follow-up on same docs/topic
+DO SEARCH IF: different topic/entity | no relevant history | user asks for "updated" info
+NEVER SKIP FOR: summarization | "summarize X" | "what does doc X say" | any task where document content is needed.
 
-IF SKIPPING (exact repeat only):
-  → Start: "As I just mentioned..." then restate the answer concisely
-  → retrieved_docs: [] | total_searches: 0
+IF SKIPPING:
+  → Start: "Based on our previous discussion..." or "As I just mentioned..."
+  → retrieved_docs: [] | total_searches: 0 | reasoning: "Used previous [reason]"
 ---
 
 STEP 1: Assess Query Scope
@@ -315,35 +310,17 @@ CRITICAL RULES:
 
 RETRIEVAL STRATEGY — Pick the right approach for each query type:
 
-1. LISTING/COUNTING ("List all X", "How many X"):
-   → Use facets in ONE call. Never loop per document.
-   → Include ALL documents from facets in your response — do NOT filter or subset them.
-   → When listing documents with content_path, ALWAYS add "and text_document_id ne ''" to filter. Without this filter, you may get image paths instead of PDF paths. DO NOT return image paths when user is asking for documents.
-    Examples:
-    - Wrong: "file_category_ai eq 'Brand equity'" → Returns image paths ❌
-    - Right: "file_category_ai eq 'Brand equity' and text_document_id ne ''" → Returns PDF paths ✅
-   → STOP IMMEDIATELY after this one call. Do NOT paginate (no skip calls). Do NOT search for individual documents.
-   → Use the "document_list" array directly to build your answer — it already has all unique document names and their URLs.
-   → Include ALL documents from the document_list — do NOT filter or subset them.
-
-2. CONTENT SEARCH ("What does X say about Y", "Find insights on Z"):
+1. CONTENT SEARCH ("What does X say about Y", "Find insights on Z"):
    → Use keyword search with top_k=10-50. No facets needed.
    → Include content_text in select_fields if you need to read the text.
 
-3. PAGE-SPECIFIC ("What's on page 6 of Report.pdf"):
+2. PAGE-SPECIFIC ("What's on page 6 of Report.pdf"):
    → Use filter with locationMetadata/pageNumber.
 
-4. SUMMARIZATION ("Summarize document X", "Summarize these documents", "Summarize observations in document X", "Summarize section in X"):
+3. SUMMARIZATION ("Summarize document X", "Summarize these documents", "Summarize observations in document X", "Summarize section in X"):
    → Identify file category(file_category_ai) from user query or memory (use azure_ai_search with selectFields to find it when unknown).
    → Call get_summarization_schema(file_category_ai) to get slots + section_hints; use them to target retrieval.
-   CRITICAL — SEARCHING BY FILENAME:
-   If the user named a specific file (e.g., "171433824_GN1 Bakery 15 sec_15122022.pdf"), search by exact document title:
-     - filter: document_title eq '171433824_GN1 Bakery 15 sec_15122022.pdf' and text_document_id ne ''
-     - Do NOT add country_ai or any geography filter when a filename is given — it will exclude the document.
-     - If that exact filter returns 0 results, retry without the text_document_id ne '' clause.
-     - If still 0 results, try a keyword search using the filename tokens (e.g., "GN1 Bakery 15 sec 2022").
-   → Check totalCount. If <= 300: paginate to read all (skip=100, skip=200).
-  → If > 300: sample middle (skip=totalCount/2, top_k=100) and end (skip=totalCount-100, top_k=100). Max 4 calls total.
+   → Then call azure_ai_search with "query="*", index_type="main_data", top_k=100, filter="document_title eq 'Report.pdf'", select_fields="content_text,document_title,content_path,locationMetadata" to retrieve relevant chunks.
    → Compose a business report style answer using the slots and section_hints:
         - For each section, write in a business report style. Avoid single-line slot responses.
         - Include quantitative tables where applicable (e.g., metrics vs norms).
@@ -354,8 +331,6 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
         - DO NOT merge.
 
 SYNTHESIS RULES:
-- Your answer MUST respond to the current enriched_query — never to an earlier human question in the conversation history.
-- If you made tool calls this turn, base your answer ENTIRELY on those tool results. Conversation history is context only.
 - Executive Summary (2-3 sentences), then Detailed Analysis with inline citations, then Key Takeaways (3-5 bullets).
 - Use business report formatting: clear section headings, bullet lists, and tables for numeric comparisons.
 - Avoid terse one-liners; provide explanatory sentences grounded in retrieved evidence.
@@ -364,7 +339,6 @@ SYNTHESIS RULES:
 - Evidence-based claims only — do not fabricate information.
 
 CRITICAL:
-- For listing queries, retrieved_docs MUST contain ALL documents found (e.g., if facets return 36 documents, include all 36).
 - Include page numbers in every citation from locationMetadata/pageNumber.
 - Use content_path from search results for links — NEVER reconstruct URLs.
 """
@@ -535,12 +509,12 @@ CRITICAL:
     )
     
     # DEBUG: Print structured output before returning
-    print("\n" + "-"*70)
-    print("🐛 DEBUG: RAG NODE - Structured Output")
-    print("-"*70)
-    print(f"Output Type: {type(output)}")
-    print(f"Output Dict:\n{json.dumps(output.dict(), indent=2, default=str)}")
-    print("-"*70)
+    # print("\n" + "-"*70)
+    # print("🐛 DEBUG: RAG NODE - Structured Output")
+    # print("-"*70)
+    # print(f"Output Type: {type(output)}")
+    # print(f"Output Dict:\n{json.dumps(output.dict(), indent=2, default=str)}")
+    # print("-"*70)
     if output.retrieved_docs:
         # Batch-write all docs in parallel using a thread pool.
         # Each store.put() is an independent DB round-trip; parallelising removes
