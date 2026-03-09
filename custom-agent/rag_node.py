@@ -220,8 +220,13 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
                 schema_injection = (
                     f"SUMMARIZATION SCHEMA (pre-loaded for \"{document_category}\"):\n"
                     f"{schema_result}\n\n"
-                    f"Use these slots and section_hints to structure your retrieval and answer. "
-                    f"Call azure_ai_search now to retrieve the document content."
+                    f"Use these slots and section_hints to structure your retrieval and answer.\n"
+                    f"Retrieve the document content using this exact approach:\n"
+                    f"  filter: document_title eq '<exact filename from user query>' and text_document_id ne ''\n"
+                    f"  top_k: 100\n"
+                    f"  select_fields: content_text,document_title,content_path,locationMetadata\n"
+                    f"Do NOT add geography filters (country_ai) or facets — retrieve by filename only.\n"
+                    f"If totalCount > 100, paginate (skip=100, skip=200 …) until all chunks are read."
                 )
                 print(f"✅ Pre-loaded schema for '{document_category}'")
             else:
