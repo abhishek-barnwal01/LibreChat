@@ -258,6 +258,14 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
     # Focused RAG prompt - tool description handles "how to use the tool"
     prompt_text = """You are a RAG retrieval and analysis agent. Use the azure_ai_search tool to find documents, then synthesize professional answers with citations.
 
+⚠️  YOUR CURRENT TASK — answer ONLY this question:
+"{enriched_query}"
+
+The conversation history below is BACKGROUND CONTEXT only.
+You are NOT answering any earlier question from history — answer ONLY the question above.
+If retrieved documents do not contain enough information, say so explicitly.
+Do NOT copy or re-use any prior AI response from the conversation history as your answer.
+
 ---
 PREVIOUSLY RETRIEVED DOCUMENTS:
 ---
@@ -367,9 +375,19 @@ CRITICAL:
 
     # Inject schema context as the last message before the loop so it is
     # the most-recent context the model sees — impossible to overlook.
+    from langchain_core.messages import SystemMessage as _SM
     if schema_injection:
-        from langchain_core.messages import SystemMessage as _SM
         agent_messages.append(_SM(content=schema_injection))
+
+    # Always pin the current task as the very last message so the LLM
+    # cannot drift to answering an earlier question from the history window.
+    agent_messages.append(_SM(
+        content=(
+            f"REMINDER — you are answering ONLY this question:\n"
+            f"\"{enriched_query}\"\n"
+            f"Do NOT answer any prior question from the conversation history."
+        )
+    ))
 
     all_new_messages = []
     max_iterations = 10
