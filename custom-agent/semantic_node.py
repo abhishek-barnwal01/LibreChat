@@ -198,6 +198,9 @@ Produce a concise, standalone enriched_query for RAG search:
 3. Apply defaults (only when absent from both query and history)
    - No time period → prepend "latest"
    - No geography → append "India"
+   EXCEPTION: If the query contains a specific filename (e.g., ends with .pdf, .pptx, .docx, .xlsx),
+   skip BOTH defaults entirely. Search by filename alone — geography and time period are irrelevant
+   for file-specific lookups and will cause the wrong document to be excluded from results.
 
 ─── DIRECT ANSWER SHORTCUT ────────────────────────────────────────────────
 Set enriched_query = "" only when the COMPLETE answer already exists verbatim in a

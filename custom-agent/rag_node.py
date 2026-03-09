@@ -327,6 +327,12 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
 4. SUMMARIZATION ("Summarize document X", "Summarize these documents", "Summarize observations in document X", "Summarize section in X"):
    → Identify file category(file_category_ai) from user query or memory (use azure_ai_search with selectFields to find it when unknown).
    → Call get_summarization_schema(file_category_ai) to get slots + section_hints; use them to target retrieval.
+   CRITICAL — SEARCHING BY FILENAME:
+   If the user named a specific file (e.g., "171433824_GN1 Bakery 15 sec_15122022.pdf"), search by exact document title:
+     - filter: document_title eq '171433824_GN1 Bakery 15 sec_15122022.pdf' and text_document_id ne ''
+     - Do NOT add country_ai or any geography filter when a filename is given — it will exclude the document.
+     - If that exact filter returns 0 results, retry without the text_document_id ne '' clause.
+     - If still 0 results, try a keyword search using the filename tokens (e.g., "GN1 Bakery 15 sec 2022").
    → Check totalCount. If <= 300: paginate to read all (skip=100, skip=200).
   → If > 300: sample middle (skip=totalCount/2, top_k=100) and end (skip=totalCount-100, top_k=100). Max 4 calls total.
    → Compose a business report style answer using the slots and section_hints:
