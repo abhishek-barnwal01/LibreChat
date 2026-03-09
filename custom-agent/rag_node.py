@@ -302,6 +302,12 @@ Search Strategy Guidelines:
 - Look for high-scoring documents
 - For broad exploratory search: use general terms
 - For targeted retrieval: use focused terms after identifying relevant sources
+- ALWAYS do at least 2 searches for broad/multi-dimensional queries (e.g. "across all countries",
+  "across all categories", "latest data"). First search = broad terms; follow-up searches =
+  varied terms, different filters, or segment-level keywords to gather comprehensive coverage.
+- NEVER stop at one search if the first results are partial or older-period data. Try alternate
+  phrasings: e.g. if "Lux brand growth" returns only India 2019 data, follow up with
+  "Lux market share segment", "Lux category performance geography", "Lux growth region".
 
 CRITICAL: selectFields USAGE
 - When LISTING documents (names, links, counts): use selectFields: "document_title,content_path"
@@ -347,6 +353,10 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
 SYNTHESIS RULES:
 - Answer the CURRENT enriched_query. Never answer an older question from the conversation history.
 - If tool calls were made this turn, base your answer ENTIRELY on those tool results — do not use any prior AI response as your answer.
+- ALWAYS present whatever data you found, even if partial. If the corpus has only country-level,
+  segment-level, or older-period data, present THAT data clearly — do NOT refuse to answer.
+  State scope limitations inline (e.g. "Available data covers India soaps, MAT Sep'19 only").
+  Partial answers with clear scope are far more useful than "data not available."
 - Executive Summary (2-3 sentences), then Detailed Analysis with inline citations, then Key Takeaways (3-5 bullets).
 - Use business report formatting: clear section headings, bullet lists, and tables for numeric comparisons.
 - Avoid terse one-liners; provide explanatory sentences grounded in retrieved evidence.
