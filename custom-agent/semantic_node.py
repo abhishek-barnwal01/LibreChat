@@ -348,9 +348,13 @@ ambiguity_detected, reasoning, task_type, document_category."""),
         print(f"✅ Enriched Query: {output.enriched_query}")
         print(f"   Reasoning: {output.reasoning}")
 
-        # NOTE: Do NOT store reasoning as an AIMessage in state.messages.
-        # Internal reasoning would appear as a real AI response in conversation history,
-        # causing the RAG LLM to confuse it with a prior answer and skip document search.
+        # Store reasoning
+        if output.reasoning:
+            reasoning_message = AIMessage(
+                content=safe_utf8(output.reasoning),
+                metadata={"type": "internal_reasoning", "node": "semantic"}
+            )
+            all_new_messages.append(reasoning_message)
 
         return {
             "messages": sanitize_any(all_new_messages),
@@ -364,8 +368,8 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             "ambiguity_detected": sanitize_any(
                 output.ambiguity_detected.model_dump()
             ),
-            "task_type": output.task_type,
-            "document_category": output.document_category,
+            "task_type": None,        # clear any stale "listing" from a prior turn
+            "document_category": None,
         }
 
     # ========================================================================
@@ -389,8 +393,13 @@ ambiguity_detected, reasoning, task_type, document_category."""),
         print("➡️  Routing to document_retriever node")
 
 
-        # NOTE: Do NOT store reasoning as an AIMessage in state.messages.
-        # Internal reasoning would appear as a real AI response in conversation history.
+        if unified.reasoning:
+            reasoning_message = AIMessage(
+                content=safe_utf8(unified.reasoning),
+                metadata={"type": "internal_reasoning", "node": "semantic"}
+            )
+            all_new_messages.append(reasoning_message)
+
 
         return {
             "messages": sanitize_any(all_new_messages),
@@ -464,9 +473,13 @@ ambiguity_detected, reasoning, task_type, document_category."""),
         print(f"   Task Type: {output.task_type} | Document Category: {output.document_category}")
         print("➡️  Passing to RAG node for document search")
 
-        # NOTE: Do NOT store reasoning as an AIMessage in state.messages.
-        # Internal reasoning would appear as a real AI response in conversation history,
-        # causing the RAG LLM to confuse it with a prior answer and skip document search.
+        # Store reasoning
+        if output.reasoning:
+            reasoning_message = AIMessage(
+                content=safe_utf8(output.reasoning),
+                metadata={"type": "internal_reasoning", "node": "semantic"}
+            )
+            all_new_messages.append(reasoning_message)
 
         return {
             "messages": sanitize_any(all_new_messages),
@@ -615,12 +628,16 @@ OUTPUT:
         )
         output: SemanticOutput = llm_structured.invoke(agent_messages)
 
-        # NOTE: Do NOT store reasoning as an AIMessage in state.messages.
-        # Internal reasoning would appear as a real AI response in conversation history,
-        # causing the RAG LLM to confuse it with a prior answer and skip document search.
+        # Store reasoning
         if output.reasoning:
-            print("\n📌 Internal Reasoning (not stored in messages):")
-            print(output.reasoning[:500] + "..." if len(output.reasoning) > 500 else output.reasoning)
+            reasoning_message = AIMessage(
+                content=safe_utf8(output.reasoning),
+                metadata={"type": "internal_reasoning", "node": "semantic"}
+            )
+            all_new_messages.append(reasoning_message)
+
+            print("\n📌 Internal Reasoning Message to store:")
+            print(reasoning_message.content[:500] + "..." if len(reasoning_message.content) > 500 else reasoning_message.content)
 
         print(f"\n✅ STRUCTURED OUTPUT:")
         print(f"   Enriched: {output.enriched_query}")

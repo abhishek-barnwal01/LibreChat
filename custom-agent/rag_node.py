@@ -260,21 +260,16 @@ PREVIOUSLY RETRIEVED DOCUMENTS:
 {memories_text}
 
 ---
-PHASE 0: HISTORY CHECK (applies only BEFORE your first tool call)
+PHASE 0: CHECK HISTORY FIRST (MANDATORY)
 ---
-SKIP ALL SEARCHES only when the EXACT same question was just answered in the immediately
-preceding exchange AND this is NOT a summarization or document-content request.
+BEFORE searching, check if answer already exists:
 
-NEVER skip for: summarization | "what does X say" | document analysis | any content question.
+SKIP SEARCH IF: query identical to last few messages | answer in recent history | follow-up on same docs/topic
+DO SEARCH IF: different topic/entity | no relevant history | user asks for "updated" info
 
 IF SKIPPING:
   → Start: "Based on our previous discussion..." or "As I just mentioned..."
-  → retrieved_docs: [] | total_searches: 0
-
-⚠️  SYNTHESIS RULE (NON-NEGOTIABLE): Once you have made ANY tool call and received results,
-your final answer MUST be composed entirely from those tool results.
-NEVER repeat, paraphrase, or reference a prior AI response as your answer.
-Prior AI messages in history are context only — they are NEVER the answer to the current query.
+  → retrieved_docs: [] | total_searches: 0 | reasoning: "Used previous [reason]"
 ---
 
 STEP 1: Assess Query Scope
@@ -371,14 +366,8 @@ CRITICAL:
         ]
     )
 
-    # Limit conversation history to the last 4 messages (≈2 exchanges).
-    # Passing the full history lets the LLM anchor its final synthesis on stale AI
-    # responses (e.g. a prior chitchat answer about "843 link test reports") even
-    # when fresh tool results are available. memories_text already captures doc context.
-    recent_messages = messages[-4:] if len(messages) > 4 else messages
-
     initial_messages = prompt.format_messages(
-        user_query=user_query, enriched_query=enriched_query, messages=recent_messages, memories_text=memories_text
+        user_query=user_query, enriched_query=enriched_query, messages=messages, memories_text=memories_text
     )
 
     agent_messages = list(initial_messages)
