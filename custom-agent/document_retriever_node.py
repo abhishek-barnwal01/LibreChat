@@ -404,6 +404,10 @@ def document_retriever_node(state: PipelineState) -> Dict[str, Any]:
         ("system", f"""You are a document listing agent for an enterprise document management system.
 Your job is to query the {_TABLE_NAME} table to find and list documents matching the user's request.
 INSTRUCTIONS:
+0. CHECK FIRST — Is the user asking WHY/HOW the previous results were shown (e.g., "on what basis",
+   "why these documents", "how did you choose", "what criteria did you use")?
+   If YES → answer directly from the chat history. Do NOT call the SQL tool. Explain the filters,
+   ordering, and column used to fetch the previous results. Stop after your explanation.
 1. Analyse the user's query and chat history to understand what documents they want.
 2. Build a SQL query using the execute_metadata_sql tool.
 3. Use _det columns for both SELECT and WHERE. Alias them without the suffix for display.

@@ -173,6 +173,7 @@ Classify into ONE category:
    - Set enriched_query = "" (tool-calling loop will handle)
    
 DECISION LOGIC (in order):
+Q-1 (CHECK FIRST): Is the user asking WHY/HOW/ON WHAT BASIS the previous response was generated (e.g., "why these documents", "on what basis", "how did you choose", "what criteria", "explain your results")? → direct
 Q0: Asking to LIST, COUNT, or SHOW documents/reports? → document_listing
 Q1: Listing/counting a SPECIFIC KNOWN report type? → document_listing
 Q2: Asking to READ, SUMMARIZE, or ANALYSE content? → semantic_specific
