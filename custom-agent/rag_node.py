@@ -272,6 +272,9 @@ BEFORE searching, check if answer already exists:
 SKIP SEARCH IF: query identical to last few messages | answer in recent history | follow-up on same docs/topic
 DO SEARCH IF: different topic/entity | no relevant history | user asks for "updated" info
 
+NEVER SKIP FOR: summarization | "summarize X" | "what does doc X say" | any task where document content is needed.
+Document content is NEVER stored in conversation history — always search for it.
+
 IF SKIPPING:
   → Start: "Based on our previous discussion..." or "As I just mentioned..."
   → retrieved_docs: [] | total_searches: 0 | reasoning: "Used previous [reason]"
@@ -350,6 +353,8 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
         - DO NOT merge.
 
 SYNTHESIS RULES:
+- Your answer MUST respond to the current enriched_query — never to an earlier human question in the conversation history.
+- If you made tool calls this turn, base your answer ENTIRELY on those tool results. Conversation history is context only.
 - Executive Summary (2-3 sentences), then Detailed Analysis with inline citations, then Key Takeaways (3-5 bullets).
 - Use business report formatting: clear section headings, bullet lists, and tables for numeric comparisons.
 - Avoid terse one-liners; provide explanatory sentences grounded in retrieved evidence.
