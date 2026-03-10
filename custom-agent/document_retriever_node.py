@@ -10,19 +10,7 @@ Supports both PostgreSQL (local) and Databricks (development) backends.
 import json
 import os
 import re
-from contextvars import ContextVar
 from typing import Dict, Any, List, Optional, Tuple
-
-# ---------------------------------------------------------------------------
-# Per-request SQL access filter (set by semantic_node from access_control rules).
-# Injected into every SQL query before execution — LLM cannot bypass this.
-# ---------------------------------------------------------------------------
-_sql_access_filter: ContextVar[Optional[str]] = ContextVar("_sql_access_filter", default=None)
-
-
-def set_sql_access_filter(filter_str: Optional[str]) -> None:
-    """Set the mandatory SQL access filter for the current async context."""
-    _sql_access_filter.set(filter_str)
 
 
 def _inject_sql_where(query: str, extra_where: str) -> str:
@@ -421,46 +409,46 @@ LIMIT 200;
 _TOOL_DOCSTRING = _build_tool_docstring()
 
 
-@tool
-def execute_metadata_sql(query: str) -> str:
-    """Execute a read-only SQL query against the metadata table and return results as JSON."""
-    # -- Safety checks --
-    normalized = query.strip().upper()
-    if not normalized.startswith("SELECT"):
-        return json.dumps({"error": "Only SELECT queries are allowed.", "query": query})
+def _make_sql_tool(sql_filter: Optional[str]):
+    """Return an `execute_metadata_sql` LangChain tool with `sql_filter` captured in closure.
 
-    forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE", "GRANT", "REVOKE"]
-    for kw in forbidden:
-        # Match as whole word to avoid false positives (e.g., "SELECTED")
-        if f" {kw} " in f" {normalized} " or normalized.startswith(f"{kw} "):
-            return json.dumps({"error": f"Forbidden keyword: {kw}", "query": query})
+    This avoids a ContextVar: the filter is bound at node-dispatch time and
+    cannot be altered by the LLM or any other concurrent request.
+    """
 
-    if _TABLE_NAME.lower() not in query.lower():
-        return json.dumps({"error": f"Query must target the {_TABLE_NAME} table.", "query": query})
+    def execute_metadata_sql(query: str) -> str:
+        # -- Safety checks --
+        normalized = query.strip().upper()
+        if not normalized.startswith("SELECT"):
+            return json.dumps({"error": "Only SELECT queries are allowed.", "query": query})
 
-    # -- Inject mandatory access filter (set per-request — LLM cannot bypass) --
-    _sqf = _sql_access_filter.get()
-    if _sqf:
-        query = _inject_sql_where(query, _sqf)
-        print(f"  🔒 SQL access filter applied: {_sqf}")
+        forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE", "GRANT", "REVOKE"]
+        for kw in forbidden:
+            if f" {kw} " in f" {normalized} " or normalized.startswith(f"{kw} "):
+                return json.dumps({"error": f"Forbidden keyword: {kw}", "query": query})
 
-    # -- Execute via the unified query interface --
-    try:
-        columns, rows, total = _execute_query(query, max_rows=200)
+        if _TABLE_NAME.lower() not in query.lower():
+            return json.dumps({"error": f"Query must target the {_TABLE_NAME} table.", "query": query})
 
-        return json.dumps({
-            "columns": columns,
-            "rows": rows,
-            "returned_count": len(rows),
-            "total_count": total,
-        }, default=str)
+        # -- Inject mandatory access filter (captured from closure — LLM cannot bypass) --
+        if sql_filter:
+            query = _inject_sql_where(query, sql_filter)
+            print(f"  🔒 SQL access filter applied: {sql_filter}")
 
-    except Exception as e:
-        return json.dumps({"error": str(e), "query": query})
+        # -- Execute via the unified query interface --
+        try:
+            columns, rows, total = _execute_query(query, max_rows=200)
+            return json.dumps({
+                "columns": columns,
+                "rows": rows,
+                "returned_count": len(rows),
+                "total_count": total,
+            }, default=str)
+        except Exception as e:
+            return json.dumps({"error": str(e), "query": query})
 
-
-# Inject the dynamic docstring so the LLM sees the correct table name and columns
-execute_metadata_sql.__doc__ = _TOOL_DOCSTRING
+    execute_metadata_sql.__doc__ = _TOOL_DOCSTRING
+    return tool(execute_metadata_sql)
 
 
 # ---------------------------------------------------------------------------
@@ -483,11 +471,6 @@ def document_retriever_node(state: PipelineState) -> Dict[str, Any]:
     print(f"  Backend: {DB_BACKEND} | Table: {_TABLE_NAME}")
     print("=" * 70)
 
-    # Apply SQL access filter for this request (computed by semantic_node from user's access rules).
-    # Uses file_category_det and country_det columns — the _det variants in the SQL metadata table.
-    # The LLM never sees or controls this — it is injected into every SQL query before execution.
-    set_sql_access_filter(state.sql_filter)
-
     user_query = state.user_query
     enriched_query = state.enriched_query or user_query
     messages = state.messages or []
@@ -495,9 +478,12 @@ def document_retriever_node(state: PipelineState) -> Dict[str, Any]:
     print(f"  Query: {user_query}")
     print(f"  Enriched: {enriched_query}")
 
-    # -- Build prompt --
-    tools = [execute_metadata_sql]
-    tools_map = {"execute_metadata_sql": execute_metadata_sql}
+    # Build a per-request tool with the access filter captured in closure.
+    # The LLM never sees or controls this — it is injected into every SQL query before execution.
+    # Uses file_category_det and country_det columns — the _det variants in the SQL metadata table.
+    sql_tool = _make_sql_tool(state.sql_filter)
+    tools = [sql_tool]
+    tools_map = {"execute_metadata_sql": sql_tool}
     llm = create_llm()
     llm_with_tools = llm.bind_tools(tools)
 
