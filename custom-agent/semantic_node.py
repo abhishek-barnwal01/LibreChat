@@ -112,6 +112,7 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
             "document_listing_output": None,  # clear stale listing from prior turn
             "odata_filter": odata_filter,
             "sql_filter": sql_filter,
+            "intent_type": "document_listing",
         }
 
     if awaiting_clarification and previous_ambiguity:
@@ -339,6 +340,7 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             "document_listing_output": None,  # clear stale listing from prior turn
             "odata_filter": odata_filter,
             "sql_filter": sql_filter,
+            "intent_type": "chitchat",
         }
 
     # ========================================================================
@@ -388,6 +390,7 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             "document_listing_output": None,  # clear stale listing from prior turn
             "odata_filter": odata_filter,
             "sql_filter": sql_filter,
+            "intent_type": "direct",
         }
 
     # ========================================================================
@@ -436,6 +439,7 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             "document_listing_output": None,  # clear stale listing; document_retriever_node sets fresh
             "odata_filter": odata_filter,
             "sql_filter": sql_filter,
+            "intent_type": "document_listing",
         }
 
     # ========================================================================
@@ -490,6 +494,7 @@ ambiguity_detected, reasoning, task_type, document_category."""),
                 "document_listing_output": None,  # clear stale listing from prior turn
                 "odata_filter": odata_filter,
                 "sql_filter": sql_filter,
+                "intent_type": "semantic_specific",
             }
 
         print(f"✅ Enriched Query: {output.enriched_query}")
@@ -522,6 +527,7 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             "document_listing_output": None,  # clear stale listing from prior turn
             "odata_filter": odata_filter,
             "sql_filter": sql_filter,
+            "intent_type": "semantic_specific",
         }
 
     # ========================================================================
@@ -700,4 +706,5 @@ OUTPUT:
             "document_listing_output": None,  # clear stale listing from prior turn
             "odata_filter": odata_filter,
             "sql_filter": sql_filter,
+            "intent_type": "semantic_broad",
         }

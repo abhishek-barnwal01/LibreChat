@@ -539,6 +539,52 @@ CRITICAL:
     # raw_output IS the final answer; no extraction step can improve on it.
     retrieved_docs = _extract_retrieved_docs_from_messages(agent_messages)
     total_searches = _count_search_calls(agent_messages)
+
+    # -------------------------------------------------------------------------
+    # Probe search: distinguish "access denied" from "document does not exist"
+    # for semantic_specific queries that returned zero results.
+    #
+    # Fires ONLY when:
+    #   • intent is semantic_specific (user named a specific document)
+    #   • user has an active access filter (restricted role — full_access users
+    #     would get the same zero result whether or not the filter is applied)
+    #   • the RAG agent searched but found nothing
+    #
+    # One lightweight Azure call (top_k=1, no content fields) on the failure
+    # path only — zero extra latency on the happy path.
+    # -------------------------------------------------------------------------
+    if (
+        getattr(state, "intent_type", None) == "semantic_specific"
+        and state.odata_filter
+        and not retrieved_docs
+        and total_searches > 0
+    ):
+        print("\n🔍 PROBE SEARCH: checking if document exists without access filter...")
+        set_access_filter(None)
+        try:
+            _probe_str = azure_ai_search.invoke({
+                "query": state.enriched_query or state.user_query,
+                "index_type": "main_data",
+                "top_k": 1,
+            })
+            _probe = json.loads(_probe_str)
+            _probe_total = _probe.get("totalCount", 0)
+        except Exception as _probe_err:
+            print(f"   ⚠️ Probe search failed: {_probe_err}")
+            _probe_total = 0
+        finally:
+            set_access_filter(state.odata_filter)  # always restore
+
+        if _probe_total > 0:
+            print("   🔒 Document exists but is outside user's access permissions.")
+            raw_output = (
+                "I found a matching document in the system, but it falls outside "
+                "your current access permissions. Please contact your administrator "
+                "if you believe you should have access to it."
+            )
+        else:
+            print("   ❌ Document not found even without access filter — does not exist.")
+
     output = RAGOutput(
         retrieved_docs=retrieved_docs,
         final_answer=raw_output,

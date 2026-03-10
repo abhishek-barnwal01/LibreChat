@@ -171,3 +171,7 @@ class PipelineState(BaseModel):
     # sql_filter   → consumed by document_retriever_node (SQL WHERE, uses _det columns)
     odata_filter: Optional[str] = None
     sql_filter: Optional[str] = None
+
+    # Intent type stored by semantic_node so downstream nodes can make intent-aware decisions
+    # (e.g. rag_node uses it to decide whether to run a probe search on empty results).
+    intent_type: Optional[str] = None
