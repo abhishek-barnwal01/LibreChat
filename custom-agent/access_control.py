@@ -10,6 +10,7 @@ null = unrestricted (full access).
 import json
 import os
 from typing import Optional, Dict, Any
+from user_resolver import resolve_email
 
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "access_rules.json")
 _config: Optional[Dict] = None
@@ -31,11 +32,19 @@ def reload_config() -> None:
 
 
 def get_access_rules(user_id: str) -> Dict[str, Any]:
-    """Return access rules dict for user_id. Falls back to default_role if unknown."""
+    """Return access rules for a user.
+
+    user_id is the LibreChat MongoDB ObjectId received from X-User-Id header.
+    It is resolved to an email first (via user_resolver) so that access_rules.json
+    can use readable email addresses as keys instead of opaque ObjectIds.
+    Falls back to default_role if the user is not listed.
+    """
     cfg = _load_config()
-    role = cfg["users"].get(user_id, cfg.get("default_role", "full_access"))
+    email = resolve_email(user_id)
+    # Try email first, then raw user_id (covers non-ObjectId IDs / test cases)
+    role = cfg["users"].get(email) or cfg["users"].get(user_id) or cfg.get("default_role", "full_access")
     rules = cfg["roles"].get(role, {"search_categories": None, "sql_categories": None, "countries": None})
-    print(f"🔒 Access rules for '{user_id}': role='{role}' | "
+    print(f"🔒 Access rules for '{email}': role='{role}' | "
           f"categories={rules.get('search_categories')} | countries={rules.get('countries')}")
     return rules
 

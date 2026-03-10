@@ -1,5 +1,5 @@
 {
-  "comment": "Role-based access control for Azure AI Search and SQL queries. null = unrestricted.",
+  "comment": "Role-based access control. Keys in 'users' are email addresses — the system resolves LibreChat user ObjectIds to emails automatically. null = unrestricted (full access).",
   "default_role": "full_access",
   "roles": {
     "full_access": {
@@ -19,6 +19,6 @@
     }
   },
   "users": {
-    "REPLACE_WITH_LIBRECHAT_USER_ID": "ua_india"
+    "user@company.com": "ua_india"
   }
 }

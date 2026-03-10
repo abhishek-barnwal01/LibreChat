@@ -30,3 +30,6 @@ POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", 5432))
 POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "qt328pp")
+
+# MongoDB (LibreChat — used to resolve user ObjectId → email)
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/LibreChat")
