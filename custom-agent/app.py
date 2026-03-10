@@ -19,7 +19,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage
 
 from graph import build_graph
-from access_control import get_access_rules, build_odata_filter
 
 
 # ---------- Build LangGraph Flow (sync, runs once at startup) ----------
@@ -430,125 +429,6 @@ async def heartbeat():
     """Basic health check endpoint."""
     return {"status": "OK", "message": "Server is running"}
 
-
-# ---------------------------------------------------------------------------
-# MCP streamable-http endpoint — for LibreChat built-in agents.
-#
-# LibreChat is configured to pass {{LIBRECHAT_USER_ID}} via X-User-ID header.
-# This endpoint applies the same role-based access rules as the custom pipeline,
-# giving LibreChat agents hard server-side filter enforcement.
-#
-# LibreChat agent config in librechat.yaml:
-#   mcpServers:
-#     gcpl-search:
-#       type: streamable-http
-#       url: http://host.docker.internal:5001/mcp
-#       headers:
-#         X-User-ID: "{{LIBRECHAT_USER_ID}}"
-# ---------------------------------------------------------------------------
-
-_MCP_TOOL_DEFINITION = {
-    "name": "azure_ai_search",
-    "description": (
-        "Search documents in the GCPL knowledge base using Azure AI Search. "
-        "Returns relevant document chunks with metadata. "
-        "Use filter parameter for OData filtering (file_category_ai, country_ai, brand_ai, etc.). "
-        "Access is automatically scoped to your permitted categories and countries."
-    ),
-    "inputSchema": {
-        "type": "object",
-        "properties": {
-            "query": {"type": "string", "description": "Search text, or '*' for wildcard"},
-            "index_type": {
-                "type": "string",
-                "enum": ["main_data", "semantic"],
-                "description": "'main_data' supports all params; 'semantic' only uses query and top_k",
-            },
-            "top_k": {"type": "integer", "description": "Number of results (1-100)", "default": 10},
-            "filter": {"type": "string", "description": "OData filter expression (main_data only)"},
-            "facets": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Facetable fields e.g. ['file_category_ai,count:100']",
-            },
-            "skip": {"type": "integer", "description": "Pagination offset (main_data only)"},
-            "select_fields": {
-                "type": "string",
-                "description": "Comma-separated fields to return. Include 'content_text' to read content.",
-            },
-        },
-        "required": ["query", "index_type", "top_k"],
-    },
-}
-
-
-@app.post("/mcp")
-async def mcp_endpoint(request: Request):
-    """MCP streamable-http endpoint for LibreChat built-in agents.
-    Applies per-user access control before forwarding to Azure AI Search.
-    """
-    user_id = request.headers.get("X-User-ID", "anonymous")
-    body = await request.json()
-
-    req_id = body.get("id")
-    method = body.get("method", "")
-    params = body.get("params", {})
-
-    # -- initialize --
-    if method == "initialize":
-        return JSONResponse({
-            "jsonrpc": "2.0", "id": req_id,
-            "result": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {"tools": {}},
-                "serverInfo": {"name": "gcpl-search", "version": "1.0.0"},
-            },
-        })
-
-    # -- tools/list --
-    if method == "tools/list":
-        return JSONResponse({
-            "jsonrpc": "2.0", "id": req_id,
-            "result": {"tools": [_MCP_TOOL_DEFINITION]},
-        })
-
-    # -- tools/call --
-    if method == "tools/call":
-        tool_name = params.get("name")
-        tool_args = dict(params.get("arguments", {}))
-
-        if tool_name != "azure_ai_search":
-            return JSONResponse({
-                "jsonrpc": "2.0", "id": req_id,
-                "error": {"code": -32601, "message": f"Unknown tool: {tool_name}"},
-            })
-
-        # Apply access control — merge mandatory filter before the search runs
-        rules = get_access_rules(user_id)
-        access_filter = build_odata_filter(rules)
-        if access_filter and tool_args.get("index_type", "main_data") == "main_data":
-            provided = tool_args.get("filter")
-            tool_args["filter"] = f"({provided}) and ({access_filter})" if provided else access_filter
-            print(f"🔒 MCP access filter applied for '{user_id}': {access_filter}")
-
-        try:
-            from tools import azure_ai_search
-            result_json = await asyncio.to_thread(azure_ai_search.invoke, tool_args)
-            return JSONResponse({
-                "jsonrpc": "2.0", "id": req_id,
-                "result": {"content": [{"type": "text", "text": result_json}], "isError": False},
-            })
-        except Exception as e:
-            return JSONResponse({
-                "jsonrpc": "2.0", "id": req_id,
-                "result": {"content": [{"type": "text", "text": str(e)}], "isError": True},
-            })
-
-    # -- unknown method --
-    return JSONResponse({
-        "jsonrpc": "2.0", "id": req_id,
-        "error": {"code": -32601, "message": f"Method not found: {method}"},
-    })
 
 # ---------- Run Server ----------
 if __name__ == "__main__":

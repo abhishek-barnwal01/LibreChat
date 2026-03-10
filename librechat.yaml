@@ -181,12 +181,6 @@ mcpServers:
   everything:
     type: streamable-http
     url: http://host.docker.internal:3001/mcp
-  gcpl-search:
-    type: streamable-http
-    url: http://host.docker.internal:5001/mcp
-    headers:
-      X-User-ID: "{{LIBRECHAT_USER_ID}}"
-    timeout: 60000
 #     timeout: 60000  # 1 minute timeout for this server, this is the default timeout for MCP servers.
 #   puppeteer:
 #     type: stdio
