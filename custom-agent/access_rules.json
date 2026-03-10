@@ -1,5 +1,5 @@
 {
-  "comment": "Role-based access control. Keys in 'users' are email addresses — the system resolves LibreChat user ObjectIds to emails automatically. null = unrestricted (full access).",
+  "comment": "Role-based access control. Keys in 'users' are email addresses — the system resolves LibreChat user ObjectIds to emails automatically. null = unrestricted (full access). search_categories / sql_categories now refer to product_category_ai / product_category_det values.",
   "default_role": "full_access",
   "roles": {
     "full_access": {
@@ -7,18 +7,28 @@
       "sql_categories": null,
       "countries": null
     },
-    "ua_india": {
-      "search_categories": ["Usage/Attitude (U&A)"],
-      "sql_categories": ["Usage and Attitude"],
+    "soaps_only": {
+      "search_categories": ["Soaps"],
+      "sql_categories": ["Soaps"],
+      "countries": null
+    },
+    "insecticides_only": {
+      "search_categories": ["Household Insecticides"],
+      "sql_categories": ["Household Insecticides"],
+      "countries": null
+    },
+    "soaps_india": {
+      "search_categories": ["Soaps"],
+      "sql_categories": ["Soaps"],
       "countries": ["India", "Sri Lanka"]
     },
-    "brand_health": {
-      "search_categories": ["Brand Health track", "Brand equity"],
-      "sql_categories": ["Brand Health Track", "Brand Equity"],
-      "countries": null
+    "insecticides_india": {
+      "search_categories": ["Household Insecticides"],
+      "sql_categories": ["Household Insecticides"],
+      "countries": ["India", "Sri Lanka"]
     }
   },
   "users": {
-    "user@company.com": "ua_india"
+    "user@company.com": "soaps_only"
   }
 }

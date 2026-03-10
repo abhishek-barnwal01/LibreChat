@@ -1,8 +1,8 @@
 """Role-based access control for Azure AI Search and SQL queries.
 
 Rules are loaded from access_rules.json (same directory).
-  - search_categories: exact file_category_ai values for OData filter
-  - sql_categories:    exact file_category_det values for SQL WHERE
+  - search_categories: exact product_category_ai values for OData filter
+  - sql_categories:    exact product_category_det values for SQL WHERE
   - countries:         shared between both (country_ai / country_det)
 null = unrestricted (full access).
 """
@@ -50,14 +50,14 @@ def get_access_rules(user_id: str) -> Dict[str, Any]:
 
 
 def build_odata_filter(rules: Dict[str, Any]) -> Optional[str]:
-    """OData filter string for Azure AI Search (file_category_ai, country_ai).
+    """OData filter string for Azure AI Search (product_category_ai, country_ai).
     Returns None if the user has full access (no restriction needed).
     """
     parts = []
     cats = rules.get("search_categories")
     countries = rules.get("countries")
     if cats:
-        cat_parts = " or ".join(f"file_category_ai eq '{c}'" for c in cats)
+        cat_parts = " or ".join(f"product_category_ai eq '{c}'" for c in cats)
         parts.append(f"({cat_parts})")
     if countries:
         country_parts = " or ".join(f"country_ai eq '{c}'" for c in countries)
@@ -66,7 +66,7 @@ def build_odata_filter(rules: Dict[str, Any]) -> Optional[str]:
 
 
 def build_sql_filter(rules: Dict[str, Any]) -> Optional[str]:
-    """SQL WHERE fragment for the Postgres metadata table (file_category_det, country_det).
+    """SQL WHERE fragment for the Postgres metadata table (product_category_det, country_det).
     Returns None if the user has full access (no restriction needed).
     """
     parts = []
@@ -74,7 +74,7 @@ def build_sql_filter(rules: Dict[str, Any]) -> Optional[str]:
     countries = rules.get("countries")
     if cats:
         quoted = ", ".join(f"'{c}'" for c in cats)
-        parts.append(f"file_category_det IN ({quoted})")
+        parts.append(f"product_category_det IN ({quoted})")
     if countries:
         quoted = ", ".join(f"'{c}'" for c in countries)
         parts.append(f"country_det IN ({quoted})")

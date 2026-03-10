@@ -42,6 +42,7 @@ class SemanticOutput(BaseModel):
     reasoning: Optional[str] = None  # optional
     task_type: Optional[Literal["summarization", "listing", "content_search", "other"]] = "other"
     document_category: Optional[str] = None  # e.g. "Link Test", "U&A" – best-guess for schema pre-load
+    product_category: Optional[str] = None   # e.g. "Soaps" | "Household Insecticides" – for access gate
 
 class UnifiedSemanticOutput(BaseModel):
     """Combined intent classification + enrichment in a single LLM call.
@@ -62,6 +63,7 @@ class UnifiedSemanticOutput(BaseModel):
     reasoning: Optional[str] = None
     task_type: Optional[Literal["summarization", "listing", "content_search", "other"]] = "other"
     document_category: Optional[str] = None
+    product_category: Optional[str] = None   # e.g. "Soaps" | "Household Insecticides" – for access gate
 
 # -------------------------
 # RAG Node Models
@@ -158,6 +160,7 @@ class PipelineState(BaseModel):
     # Set by semantic_node; consumed by rag_node for deterministic flow control.
     task_type: Optional[str] = None           # "summarization" | "listing" | "content_search" | "other"
     document_category: Optional[str] = None   # e.g. "Link Test", "U&A" – used to pre-load schema
+    product_category: Optional[str] = None    # e.g. "Soaps" | "Household Insecticides" – from access gate
 
     # Set by rag_node when the query asks for a chart/graph; routes to formatter_node.
     needs_formatter: bool = False

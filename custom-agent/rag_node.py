@@ -189,77 +189,11 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
             ).dict()),
         }
 
-    # -------------------------------------------------------------------------
-    # Pre-probe: detect access-denied BEFORE running the LLM agent loop.
-    #
-    # For semantic_specific queries from restricted users we run two cheap
-    # top_k=1 searches (with and without the access filter) to distinguish:
-    #   • "document exists but outside your permissions" → return early with a
-    #     clear access-denied message; the LLM never runs, no tokens stream to
-    #     the client, and the streaming path falls through to the non-RAG chunk
-    #     path which reads rag_output.final_answer correctly.
-    #   • "document genuinely not found" → proceed normally so the LLM can give
-    #     a helpful "not found" response with suggestions.
-    #
-    # Restricted to semantic_specific + odata_filter so unrestricted users and
-    # non-specific intents pay zero extra latency.
-    # -------------------------------------------------------------------------
-    if (
-        getattr(state, "intent_type", None) == "semantic_specific"
-        and state.odata_filter
-    ):
-        print("\n🔍 PRE-PROBE: checking document access before LLM call...")
-        _probe_query = enriched_query or user_query
-
-        # Step 1: search WITH the access filter (same as the LLM would use)
-        try:
-            _filtered_str = azure_ai_search.invoke({
-                "query": _probe_query,
-                "index_type": "main_data",
-                "top_k": 1,
-            })
-            _filtered_total = json.loads(_filtered_str).get("totalCount", 0)
-        except Exception as _e:
-            print(f"   ⚠️ Filtered pre-probe failed: {_e}")
-            _filtered_total = -1  # unknown — proceed normally
-
-        if _filtered_total == 0:
-            # Step 2: search WITHOUT the access filter to check existence
-            set_access_filter(None)
-            try:
-                _unfiltered_str = azure_ai_search.invoke({
-                    "query": _probe_query,
-                    "index_type": "main_data",
-                    "top_k": 1,
-                })
-                _unfiltered_total = json.loads(_unfiltered_str).get("totalCount", 0)
-            except Exception as _e:
-                print(f"   ⚠️ Unfiltered pre-probe failed: {_e}")
-                _unfiltered_total = 0
-            finally:
-                set_access_filter(state.odata_filter)  # always restore
-
-            if _unfiltered_total > 0:
-                print("   🔒 Document exists but is outside user's access permissions → early return.")
-                _access_msg = (
-                    "I found a matching document in the system, but it falls outside "
-                    "your current access permissions. Please contact your administrator "
-                    "if you believe you should have access to it."
-                )
-                from langchain_core.messages import AIMessage as _AIMsg
-                return {
-                    "messages": sanitize_any([_AIMsg(content=_access_msg)]),
-                    "rag_output": sanitize_any(RAGOutput(
-                        retrieved_docs=[],
-                        final_answer=_access_msg,
-                        total_searches=2,
-                    ).dict()),
-                    "needs_formatter": False,
-                }
-            else:
-                print("   ❌ Document not found even without filter — proceeding to LLM.")
-        else:
-            print(f"   ✅ Filtered pre-probe found {_filtered_total} result(s) — proceeding to LLM.")
+    # NOTE: Access-denied detection is now handled in semantic_node via the
+    # product_category access gate (LLM-classified, zero Azure calls).
+    # The pre-probe that used Azure semantic search has been removed because
+    # vector search returned false positives, causing "not found" to be
+    # shown instead of "access denied".
 
     thread_id = config.get("configurable", {}).get("thread_id", "default")
 
