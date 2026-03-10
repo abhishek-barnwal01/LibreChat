@@ -483,6 +483,11 @@ def document_retriever_node(state: PipelineState) -> Dict[str, Any]:
     print(f"  Backend: {DB_BACKEND} | Table: {_TABLE_NAME}")
     print("=" * 70)
 
+    # Apply SQL access filter for this request (computed by semantic_node from user's access rules).
+    # Uses file_category_det and country_det columns — the _det variants in the SQL metadata table.
+    # The LLM never sees or controls this — it is injected into every SQL query before execution.
+    set_sql_access_filter(state.sql_filter)
+
     user_query = state.user_query
     enriched_query = state.enriched_query or user_query
     messages = state.messages or []

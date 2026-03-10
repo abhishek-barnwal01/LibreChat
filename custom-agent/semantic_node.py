@@ -3,14 +3,13 @@
 from typing import Dict, Any, List
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from tools import azure_ai_search, set_access_filter
+from tools import azure_ai_search
 from models import AmbiguityInfo, IntentClassification, SemanticOutput, UnifiedSemanticOutput, PipelineState
 import json
 from memory_store import store
 from langgraph.types import RunnableConfig
 from utils import safe_utf8, sanitize_any, create_llm, execute_tool_calls
 from access_control import get_access_rules, build_odata_filter, build_sql_filter
-from document_retriever_node import set_sql_access_filter
 
 
 def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, Any]:
@@ -41,12 +40,12 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
     print(f"User ID: {user_id}")
     print(f"Clarification Mode: {awaiting_clarification}")
 
-    # -- Access control: set mandatory filters for this request context --
-    # These are injected at execution time in tools.py and document_retriever_node.py.
+    # -- Access control: compute mandatory filters and store in state --
+    # Passed explicitly to rag_node (odata_filter) and document_retriever_node (sql_filter).
     # The LLM never sees or controls them.
     _rules = get_access_rules(user_id)
-    set_access_filter(build_odata_filter(_rules))
-    set_sql_access_filter(build_sql_filter(_rules))
+    odata_filter = build_odata_filter(_rules)  # Azure AI Search OData (file_category_ai, country_ai)
+    sql_filter = build_sql_filter(_rules)       # SQL WHERE fragment (file_category_det, country_det)
     if awaiting_clarification and previous_ambiguity:
         print(f"Previous Entity: {previous_ambiguity.entity}")
         print(f"Previous Options: {[opt.label for opt in previous_ambiguity.options[:5]]}")
@@ -111,6 +110,8 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
             "ambiguity_detected": sanitize_any(AmbiguityInfo(ambiguous=False).model_dump()),
             "document_category": None,
             "document_listing_output": None,  # clear stale listing from prior turn
+            "odata_filter": odata_filter,
+            "sql_filter": sql_filter,
         }
 
     if awaiting_clarification and previous_ambiguity:
@@ -336,6 +337,8 @@ ambiguity_detected, reasoning, task_type, document_category."""),
                 AmbiguityInfo(ambiguous=False).model_dump()
             ),
             "document_listing_output": None,  # clear stale listing from prior turn
+            "odata_filter": odata_filter,
+            "sql_filter": sql_filter,
         }
 
     # ========================================================================
@@ -383,6 +386,8 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             "task_type": None,        # clear any stale "listing" from a prior turn
             "document_category": None,
             "document_listing_output": None,  # clear stale listing from prior turn
+            "odata_filter": odata_filter,
+            "sql_filter": sql_filter,
         }
 
     # ========================================================================
@@ -429,6 +434,8 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             "task_type": "listing",
             "document_category": unified.document_category,
             "document_listing_output": None,  # clear stale listing; document_retriever_node sets fresh
+            "odata_filter": odata_filter,
+            "sql_filter": sql_filter,
         }
 
     # ========================================================================
@@ -481,6 +488,8 @@ ambiguity_detected, reasoning, task_type, document_category."""),
                 "task_type": output.task_type,
                 "document_category": output.document_category,
                 "document_listing_output": None,  # clear stale listing from prior turn
+                "odata_filter": odata_filter,
+                "sql_filter": sql_filter,
             }
 
         print(f"✅ Enriched Query: {output.enriched_query}")
@@ -511,6 +520,8 @@ ambiguity_detected, reasoning, task_type, document_category."""),
             "task_type": output.task_type,
             "document_category": output.document_category,
             "document_listing_output": None,  # clear stale listing from prior turn
+            "odata_filter": odata_filter,
+            "sql_filter": sql_filter,
         }
 
     # ========================================================================
@@ -687,4 +698,6 @@ OUTPUT:
             "task_type": None,        # clear any stale "listing" from a prior turn
             "document_category": None,
             "document_listing_output": None,  # clear stale listing from prior turn
+            "odata_filter": odata_filter,
+            "sql_filter": sql_filter,
         }

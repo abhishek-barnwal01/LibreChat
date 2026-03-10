@@ -161,7 +161,13 @@ class PipelineState(BaseModel):
 
     # Set by rag_node when the query asks for a chart/graph; routes to formatter_node.
     needs_formatter: bool = False
-    
+
     # Document listing output — set by document_retriever_node for listing queries.
     # Preserved in state so subsequent queries can reference the listed documents.
     document_listing_output: Optional[DocumentListingOutput] = None
+
+    # Access filters computed once by semantic_node from the user's access rules.
+    # odata_filter → consumed by rag_node (Azure AI Search OData, uses _ai columns)
+    # sql_filter   → consumed by document_retriever_node (SQL WHERE, uses _det columns)
+    odata_filter: Optional[str] = None
+    sql_filter: Optional[str] = None
