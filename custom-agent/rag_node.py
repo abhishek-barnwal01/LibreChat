@@ -263,7 +263,6 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
 
 The conversation history below is BACKGROUND CONTEXT only.
 You are NOT answering any earlier question from history — answer ONLY the question above.
-If retrieved documents do not contain enough information, say so explicitly.
 Do NOT copy or re-use any prior AI response from the conversation history as your answer.
 
 ---
@@ -296,16 +295,20 @@ STEP 1: Assess Query Scope
 - Establish relevance criteria for document selection
 
 STEP 2: Execute Strategic Search
-- Start with a focused, natural query. One search is enough when the first results are
-  clearly relevant and sufficient to answer the question.
-- Follow up with a second search only when:
-  • Results are partial, off-topic, or cover the wrong time period/geography
-  • The query is broad ("across all countries", "all categories", "latest data") and
-    one pass cannot capture full coverage
-  • Use different keywords, filters, or segment-level terms in the follow-up
-- For brand/metric queries where first results miss the mark, try keyword expansion:
-  quote the brand for exact match and add metric synonyms.
-  E.g. `"Lux" growth volume share penetration gains decline`
+Call tool: azure ai search
+Search Strategy Guidelines:
+- Use domain-specific keywords from the query
+- Look for high-scoring documents
+- For broad exploratory search: use general terms
+- For targeted retrieval: use focused terms after identifying relevant sources
+- ALWAYS do at least 2 searches for broad/multi-dimensional queries. First search = broad terms; follow-up searches = varied terms, different filters, or segment-level keywords to gather comprehensive coverage.
+- If conclusive results are not found, formulate queries as KEYWORD EXPANSIONS, not natural-language phrases
+- NEVER stop at one search if the first results are partial or older-period data. Try alternate
+  phrasings: e.g. if "Lux brand growth" returns only India 2019 data, follow up with
+  `"Lux" growth share sales market performance`, "Lux market share segment".
+- Reason: Azure AI Search ranks on keyword overlap. Multi-keyword queries match docs that
+  use "sales", "penetration", "volume", "gains", "decline", etc. — not just those containing
+  the exact phrase. More keywords = broader recall.
 
 CRITICAL: selectFields USAGE
 - When LISTING documents (names, links, counts): use selectFields: "document_title,content_path"
@@ -351,10 +354,6 @@ RETRIEVAL STRATEGY — Pick the right approach for each query type:
 SYNTHESIS RULES:
 - Answer the CURRENT enriched_query. Never answer an older question from the conversation history.
 - If tool calls were made this turn, base your answer ENTIRELY on those tool results — do not use any prior AI response as your answer.
-- ALWAYS present whatever data you found, even if partial. If the corpus has only country-level,
-  segment-level, or older-period data, present THAT data clearly — do NOT refuse to answer.
-  State scope limitations inline (e.g. "Available data covers India soaps, MAT Sep'19 only").
-  Partial answers with clear scope are far more useful than "data not available."
 - Executive Summary (2-3 sentences), then Detailed Analysis with inline citations, then Key Takeaways (3-5 bullets).
 - Use business report formatting: clear section headings, bullet lists, and tables for numeric comparisons.
 - Avoid terse one-liners; provide explanatory sentences grounded in retrieved evidence.
