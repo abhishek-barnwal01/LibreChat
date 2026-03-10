@@ -10,7 +10,32 @@ Supports both PostgreSQL (local) and Databricks (development) backends.
 import json
 import os
 import re
+from contextvars import ContextVar
 from typing import Dict, Any, List, Optional, Tuple
+
+# ---------------------------------------------------------------------------
+# Per-request SQL access filter (set by semantic_node from access_control rules).
+# Injected into every SQL query before execution — LLM cannot bypass this.
+# ---------------------------------------------------------------------------
+_sql_access_filter: ContextVar[Optional[str]] = ContextVar("_sql_access_filter", default=None)
+
+
+def set_sql_access_filter(filter_str: Optional[str]) -> None:
+    """Set the mandatory SQL access filter for the current async context."""
+    _sql_access_filter.set(filter_str)
+
+
+def _inject_sql_where(query: str, extra_where: str) -> str:
+    """Inject extra_where conditions into a SQL query's WHERE clause."""
+    where_match = re.search(r'\bWHERE\b', query, re.IGNORECASE)
+    if where_match:
+        pos = where_match.end()
+        return query[:pos] + f" ({extra_where}) AND " + query[pos:]
+    end_match = re.search(r'\b(ORDER BY|GROUP BY|HAVING|LIMIT)\b', query, re.IGNORECASE)
+    if end_match:
+        pos = end_match.start()
+        return query[:pos] + f" WHERE ({extra_where}) " + query[pos:]
+    return query + f" WHERE ({extra_where})"
 
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -344,6 +369,12 @@ def execute_metadata_sql(query: str) -> str:
 
     if _TABLE_NAME.lower() not in query.lower():
         return json.dumps({"error": f"Query must target the {_TABLE_NAME} table.", "query": query})
+
+    # -- Inject mandatory access filter (set per-request — LLM cannot bypass) --
+    _sqf = _sql_access_filter.get()
+    if _sqf:
+        query = _inject_sql_where(query, _sqf)
+        print(f"  🔒 SQL access filter applied: {_sqf}")
 
     # -- Execute via the unified query interface --
     try:

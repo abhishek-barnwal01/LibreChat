@@ -1,0 +1,24 @@
+{
+  "comment": "Role-based access control for Azure AI Search and SQL queries. null = unrestricted.",
+  "default_role": "full_access",
+  "roles": {
+    "full_access": {
+      "search_categories": null,
+      "sql_categories": null,
+      "countries": null
+    },
+    "ua_india": {
+      "search_categories": ["Usage/Attitude (U&A)"],
+      "sql_categories": ["Usage and Attitude"],
+      "countries": ["India", "Sri Lanka"]
+    },
+    "brand_health": {
+      "search_categories": ["Brand Health track", "Brand equity"],
+      "sql_categories": ["Brand Health Track", "Brand Equity"],
+      "countries": null
+    }
+  },
+  "users": {
+    "REPLACE_WITH_LIBRECHAT_USER_ID": "ua_india"
+  }
+}
