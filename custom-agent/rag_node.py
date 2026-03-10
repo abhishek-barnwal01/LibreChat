@@ -189,6 +189,78 @@ def rag_node(state: PipelineState, config: RunnableConfig = None) -> Dict[str, A
             ).dict()),
         }
 
+    # -------------------------------------------------------------------------
+    # Pre-probe: detect access-denied BEFORE running the LLM agent loop.
+    #
+    # For semantic_specific queries from restricted users we run two cheap
+    # top_k=1 searches (with and without the access filter) to distinguish:
+    #   • "document exists but outside your permissions" → return early with a
+    #     clear access-denied message; the LLM never runs, no tokens stream to
+    #     the client, and the streaming path falls through to the non-RAG chunk
+    #     path which reads rag_output.final_answer correctly.
+    #   • "document genuinely not found" → proceed normally so the LLM can give
+    #     a helpful "not found" response with suggestions.
+    #
+    # Restricted to semantic_specific + odata_filter so unrestricted users and
+    # non-specific intents pay zero extra latency.
+    # -------------------------------------------------------------------------
+    if (
+        getattr(state, "intent_type", None) == "semantic_specific"
+        and state.odata_filter
+    ):
+        print("\n🔍 PRE-PROBE: checking document access before LLM call...")
+        _probe_query = enriched_query or user_query
+
+        # Step 1: search WITH the access filter (same as the LLM would use)
+        try:
+            _filtered_str = azure_ai_search.invoke({
+                "query": _probe_query,
+                "index_type": "main_data",
+                "top_k": 1,
+            })
+            _filtered_total = json.loads(_filtered_str).get("totalCount", 0)
+        except Exception as _e:
+            print(f"   ⚠️ Filtered pre-probe failed: {_e}")
+            _filtered_total = -1  # unknown — proceed normally
+
+        if _filtered_total == 0:
+            # Step 2: search WITHOUT the access filter to check existence
+            set_access_filter(None)
+            try:
+                _unfiltered_str = azure_ai_search.invoke({
+                    "query": _probe_query,
+                    "index_type": "main_data",
+                    "top_k": 1,
+                })
+                _unfiltered_total = json.loads(_unfiltered_str).get("totalCount", 0)
+            except Exception as _e:
+                print(f"   ⚠️ Unfiltered pre-probe failed: {_e}")
+                _unfiltered_total = 0
+            finally:
+                set_access_filter(state.odata_filter)  # always restore
+
+            if _unfiltered_total > 0:
+                print("   🔒 Document exists but is outside user's access permissions → early return.")
+                _access_msg = (
+                    "I found a matching document in the system, but it falls outside "
+                    "your current access permissions. Please contact your administrator "
+                    "if you believe you should have access to it."
+                )
+                from langchain_core.messages import AIMessage as _AIMsg
+                return {
+                    "messages": sanitize_any([_AIMsg(content=_access_msg)]),
+                    "rag_output": sanitize_any(RAGOutput(
+                        retrieved_docs=[],
+                        final_answer=_access_msg,
+                        total_searches=2,
+                    ).dict()),
+                    "needs_formatter": False,
+                }
+            else:
+                print("   ❌ Document not found even without filter — proceeding to LLM.")
+        else:
+            print(f"   ✅ Filtered pre-probe found {_filtered_total} result(s) — proceeding to LLM.")
+
     thread_id = config.get("configurable", {}).get("thread_id", "default")
 
     # Reuse memories already loaded by semantic_node — avoids a second DB round-trip.
@@ -539,51 +611,6 @@ CRITICAL:
     # raw_output IS the final answer; no extraction step can improve on it.
     retrieved_docs = _extract_retrieved_docs_from_messages(agent_messages)
     total_searches = _count_search_calls(agent_messages)
-
-    # -------------------------------------------------------------------------
-    # Probe search: distinguish "access denied" from "document does not exist"
-    # for semantic_specific queries that returned zero results.
-    #
-    # Fires ONLY when:
-    #   • intent is semantic_specific (user named a specific document)
-    #   • user has an active access filter (restricted role — full_access users
-    #     would get the same zero result whether or not the filter is applied)
-    #   • the RAG agent searched but found nothing
-    #
-    # One lightweight Azure call (top_k=1, no content fields) on the failure
-    # path only — zero extra latency on the happy path.
-    # -------------------------------------------------------------------------
-    if (
-        getattr(state, "intent_type", None) == "semantic_specific"
-        and state.odata_filter
-        and not retrieved_docs
-        and total_searches > 0
-    ):
-        print("\n🔍 PROBE SEARCH: checking if document exists without access filter...")
-        set_access_filter(None)
-        try:
-            _probe_str = azure_ai_search.invoke({
-                "query": state.enriched_query or state.user_query,
-                "index_type": "main_data",
-                "top_k": 1,
-            })
-            _probe = json.loads(_probe_str)
-            _probe_total = _probe.get("totalCount", 0)
-        except Exception as _probe_err:
-            print(f"   ⚠️ Probe search failed: {_probe_err}")
-            _probe_total = 0
-        finally:
-            set_access_filter(state.odata_filter)  # always restore
-
-        if _probe_total > 0:
-            print("   🔒 Document exists but is outside user's access permissions.")
-            raw_output = (
-                "I found a matching document in the system, but it falls outside "
-                "your current access permissions. Please contact your administrator "
-                "if you believe you should have access to it."
-            )
-        else:
-            print("   ❌ Document not found even without access filter — does not exist.")
 
     output = RAGOutput(
         retrieved_docs=retrieved_docs,
