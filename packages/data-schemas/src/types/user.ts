@@ -1,6 +1,13 @@
 import type { Document, Types } from 'mongoose';
 import { CursorPaginationParams } from '~/common';
 
+export interface DataAccess {
+  /** OData field: product_category_ai. Null means unrestricted. */
+  productCategories?: string[] | null;
+  /** OData field: country_ai. Null means unrestricted. */
+  countries?: string[] | null;
+}
+
 export interface IUser extends Document {
   name?: string;
   username?: string;
@@ -34,6 +41,8 @@ export interface IUser extends Document {
   personalization?: {
     memories?: boolean;
   };
+  /** Per-user data access restrictions for Azure AI Search. Null fields mean unrestricted. */
+  dataAccess?: DataAccess | null;
   createdAt?: Date;
   updatedAt?: Date;
   /** Field for external source identification (for consistency with TPrincipal schema) */

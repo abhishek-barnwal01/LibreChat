@@ -146,6 +146,20 @@ const userSchema = new Schema<IUser>(
       type: String,
       sparse: true,
     },
+    /**
+     * Per-user data access restrictions for Azure AI Search.
+     * Controls which product categories and countries the user can query.
+     * Null fields mean unrestricted access.
+     * Set via admin tooling: db.users.updateOne({ email }, { $set: { dataAccess: { productCategories: ['Soaps'], countries: null } } })
+     */
+    dataAccess: {
+      type: {
+        productCategories: { type: [String], default: null },
+        countries: { type: [String], default: null },
+      },
+      default: null,
+      required: false,
+    },
   },
   { timestamps: true },
 );
