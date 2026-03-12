@@ -1,0 +1,25 @@
+services:
+  api:
+    build:
+      context: .
+      target: node
+    # Mount individual modified api files so they hot-reload without a full rebuild
+    volumes:
+      - type: bind
+        source: ./api/server/controllers/AdminController.js
+        target: /app/api/server/controllers/AdminController.js
+      - type: bind
+        source: ./api/server/routes/admin.js
+        target: /app/api/server/routes/admin.js
+      - type: bind
+        source: ./api/server/routes/index.js
+        target: /app/api/server/routes/index.js
+      - type: bind
+        source: ./api/server/index.js
+        target: /app/api/server/index.js
+      - type: bind
+        source: ./api/app/clients/tools/structured/AzureAISearch.js
+        target: /app/api/app/clients/tools/structured/AzureAISearch.js
+      - type: bind
+        source: ./api/server/services/DataAccessService.js
+        target: /app/api/server/services/DataAccessService.js
