@@ -28,7 +28,6 @@ const {
   loadActionSets,
   domainParser,
 } = require('./ActionService');
-const { buildMandatoryAzureFilter } = require('./DataAccessService');
 const { processFileURL, uploadImageBuffer } = require('~/server/services/Files/process');
 const { getEndpointsConfig, getCachedTools } = require('~/server/services/Config');
 const { manifestToolMap, toolkits } = require('~/app/clients/tools/manifest');
@@ -458,8 +457,6 @@ async function loadAgentTools({ req, res, agent, signal, tool_resources, openAIA
     imageOutputType: appConfig.imageOutputType,
   });
 
-  const mandatoryAzureFilter = buildMandatoryAzureFilter(req.user);
-
   const agentTools = [];
   for (let i = 0; i < loadedTools.length; i++) {
     const tool = loadedTools[i];
@@ -493,15 +490,6 @@ async function loadAgentTools({ req, res, agent, signal, tool_resources, openAIA
     }
 
     const toolInstance = toolFn(async (...args) => {
-      if (tool.name === 'azure-ai-search' && mandatoryAzureFilter) {
-        const params = args[0] || {};
-        // AND the mandatory access filter with whatever filter the LLM provided.
-        // This runs server-side after LLM output, so the LLM cannot bypass it.
-        params.filter = params.filter
-          ? `(${params.filter}) and (${mandatoryAzureFilter})`
-          : mandatoryAzureFilter;
-        return tool['_call'](params);
-      }
       return tool['_call'](...args);
     }, toolDefinition);
 
