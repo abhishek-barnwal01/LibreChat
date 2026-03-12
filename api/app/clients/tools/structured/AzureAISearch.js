@@ -279,6 +279,7 @@ EXAMPLES:
 
       // Build enhanced response
       const response = {
+        appliedFilter: searchOption.filter || null,
         documents: [],
         totalCount: 0,
         returnedCount: 0,
