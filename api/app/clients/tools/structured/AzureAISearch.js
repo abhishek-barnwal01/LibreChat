@@ -2,6 +2,8 @@ const { z } = require('zod');
 const { Tool } = require('@langchain/core/tools');
 const { logger } = require('@librechat/data-schemas');
 const { SearchClient, AzureKeyCredential } = require('@azure/search-documents');
+const { buildMandatoryAzureFilter } = require('~/server/services/DataAccessService');
+const { findUser } = require('~/models');
 
 class AzureAISearch extends Tool {
   // Constants for default values
@@ -131,6 +133,7 @@ EXAMPLES:
 
     /* Used to initialize the Tool without necessary variables. */
     this.override = fields.override ?? false;
+    this.userId = fields.userId ?? null;
 
     // Define schema
     this.schema = z.object({
@@ -245,7 +248,24 @@ EXAMPLES:
       } else if (this.select) {
         searchOption.select = this.select.split(',');
       }
-      if (filter) {
+
+      // Build mandatory data-access filter for the requesting user
+      let mandatoryFilter = null;
+      if (this.userId) {
+        try {
+          const userDoc = await findUser({ _id: this.userId }, 'dataAccess');
+          mandatoryFilter = buildMandatoryAzureFilter(userDoc);
+        } catch (err) {
+          logger.warn('[AzureAISearch] Could not load user dataAccess filter:', err.message);
+        }
+      }
+
+      // AND-combine mandatory filter with any LLM-provided filter so the LLM cannot bypass it
+      if (mandatoryFilter && filter) {
+        searchOption.filter = `(${mandatoryFilter}) and (${filter})`;
+      } else if (mandatoryFilter) {
+        searchOption.filter = mandatoryFilter;
+      } else if (filter) {
         searchOption.filter = filter;
       }
       if (facets && Array.isArray(facets) && facets.length > 0) {
