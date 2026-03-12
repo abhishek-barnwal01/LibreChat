@@ -778,6 +778,39 @@ export function getRole(roleName: string): Promise<r.TRole> {
   return request.get(endpoints.getRole(roleName));
 }
 
+/* Admin - user management */
+export interface DataAccess {
+  productCategories?: string[] | null;
+  countries?: string[] | null;
+}
+
+export interface UpdateUserDataAccessVars {
+  email: string;
+  dataAccess: DataAccess | null;
+}
+
+export interface UpdateUserRoleVars {
+  email: string;
+  role: string;
+}
+
+export interface AdminUserUpdateResponse {
+  message: string;
+  user: { email: string; dataAccess?: DataAccess | null; role?: string };
+}
+
+export function updateUserDataAccess(
+  variables: UpdateUserDataAccessVars,
+): Promise<AdminUserUpdateResponse> {
+  return request.patch(endpoints.updateUserDataAccess(), variables);
+}
+
+export function updateUserRole(
+  variables: UpdateUserRoleVars,
+): Promise<AdminUserUpdateResponse> {
+  return request.patch(endpoints.updateUserRole(), variables);
+}
+
 export function updatePromptPermissions(
   variables: m.UpdatePromptPermVars,
 ): Promise<m.UpdatePermResponse> {

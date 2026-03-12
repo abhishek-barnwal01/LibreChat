@@ -306,6 +306,11 @@ export const getCategories = () => `${BASE_URL}/api/categories`;
 
 export const getAllPromptGroups = () => `${prompts()}/all`;
 
+/* Admin */
+export const adminUsers = () => `${BASE_URL}/api/admin/users`;
+export const updateUserDataAccess = () => `${adminUsers()}/data-access`;
+export const updateUserRole = () => `${adminUsers()}/role`;
+
 /* Roles */
 export const roles = () => `${BASE_URL}/api/roles`;
 export const getRole = (roleName: string) => `${roles()}/${roleName.toLowerCase()}`;
