@@ -17,11 +17,11 @@ const FOLDERS = ['soaps/', 'Household_Insecticides/'];
 const DATABRICKS_HOST = process.env.DATABRICKS_HOST;
 const DATABRICKS_TOKEN = process.env.DATABRICKS_TOKEN;
 const DATABRICKS_WAREHOUSE_ID = process.env.DATABRICKS_WAREHOUSE_ID;
-const DATABRICKS_TABLE = 'hive_metastore.silver.gcpl_master_data_table';
+const DATABRICKS_TABLE = 'hive_metastore.silver.silver_deterministic_ai_document_data';
 const DATABRICKS_FILTER_COLUMNS = [
   'file_category_det',
-  'file_sub_category_det',
   'product_category_det',
+  'file_time_period_det',
   'country_det',
   'brand_det',
 ];

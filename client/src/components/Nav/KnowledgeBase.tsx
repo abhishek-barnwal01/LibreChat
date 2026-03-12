@@ -55,8 +55,8 @@ const EXCLUDED_FILTER_KEYS = new Set(['file_path', 'document_id', 'source_system
 /** Metadata keys whose dropdown values come from Databricks (clean master data) */
 const DATABRICKS_FILTER_KEYS = new Set([
   'file_category_det',
-  'file_sub_category_det',
   'product_category_det',
+  'file_time_period_det',
   'country_det',
   'brand_det',
 ]);
