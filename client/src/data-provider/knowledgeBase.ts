@@ -60,7 +60,7 @@ export const useGetFilterOptionsQuery = (
     ['filterOptions'],
     () => getFilterOptions(),
     {
-      staleTime: 1000 * 60 * 60, // 1 hour (master data changes infrequently)
+      staleTime: 1000 * 60 * 5, // 5 minutes to keep filters fresh
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       ...config,
