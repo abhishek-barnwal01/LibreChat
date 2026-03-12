@@ -1,11 +1,19 @@
 import axios from 'axios';
-import { useMutation } from '@tanstack/react-query';
-import type { UseMutationResult } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 
-// Types defined here because data-service interfaces aren't re-exported from librechat-data-provider
+// Types
 export interface DataAccess {
   productCategories?: string[] | null;
   countries?: string[] | null;
+}
+
+export interface AdminUser {
+  _id: string;
+  email: string;
+  name?: string;
+  role: string;
+  dataAccess?: DataAccess | null;
 }
 
 export interface UpdateUserDataAccessVars {
@@ -23,24 +31,47 @@ export interface AdminUserUpdateResponse {
   user: { email: string; dataAccess?: DataAccess | null; role?: string };
 }
 
-// Make direct HTTP calls to avoid relying on the compiled data-provider package
-// (which may not have the new service functions built yet)
+// Query key
+export const ADMIN_USERS_KEY = ['admin', 'users'];
+
+// Fetchers — direct axios calls, independent of the compiled data-provider package
+async function fetchAdminUsers(): Promise<AdminUser[]> {
+  const res = await axios.get('/api/admin/users');
+  return res.data.users as AdminUser[];
+}
+
 async function patchAdmin<T>(url: string, data: unknown): Promise<T> {
-  const response = await axios.patch(url, JSON.stringify(data), {
+  const res = await axios.patch(url, JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json' },
   });
-  return response.data as T;
+  return res.data as T;
 }
+
+// Hooks
+export const useGetAdminUsersQuery = (): UseQueryResult<AdminUser[]> =>
+  useQuery(ADMIN_USERS_KEY, fetchAdminUsers, {
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
 
 export const useUpdateUserDataAccessMutation = (options?: {
   onSuccess?: (data: AdminUserUpdateResponse) => void;
   onError?: (error: unknown) => void;
 }): UseMutationResult<AdminUserUpdateResponse, unknown, UpdateUserDataAccessVars> => {
+  const queryClient = useQueryClient();
   return useMutation(
     (variables: UpdateUserDataAccessVars) =>
       patchAdmin<AdminUserUpdateResponse>('/api/admin/users/data-access', variables),
     {
-      onSuccess: options?.onSuccess,
+      onSuccess: (data, variables) => {
+        // Update cached user list in place
+        queryClient.setQueryData<AdminUser[]>(ADMIN_USERS_KEY, (old) =>
+          old?.map((u) =>
+            u.email === variables.email ? { ...u, dataAccess: variables.dataAccess } : u,
+          ),
+        );
+        options?.onSuccess?.(data);
+      },
       onError: options?.onError,
     },
   );
@@ -50,11 +81,18 @@ export const useUpdateUserRoleMutation = (options?: {
   onSuccess?: (data: AdminUserUpdateResponse) => void;
   onError?: (error: unknown) => void;
 }): UseMutationResult<AdminUserUpdateResponse, unknown, UpdateUserRoleVars> => {
+  const queryClient = useQueryClient();
   return useMutation(
     (variables: UpdateUserRoleVars) =>
       patchAdmin<AdminUserUpdateResponse>('/api/admin/users/role', variables),
     {
-      onSuccess: options?.onSuccess,
+      onSuccess: (data, variables) => {
+        // Update cached user list in place
+        queryClient.setQueryData<AdminUser[]>(ADMIN_USERS_KEY, (old) =>
+          old?.map((u) => (u.email === variables.email ? { ...u, role: variables.role } : u)),
+        );
+        options?.onSuccess?.(data);
+      },
       onError: options?.onError,
     },
   );

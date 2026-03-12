@@ -1,5 +1,6 @@
 'use strict';
 
+const mongoose = require('mongoose');
 const { logger } = require('@librechat/data-schemas');
 const { SystemRoles } = require('librechat-data-provider');
 const { findUser, updateUser } = require('~/models');
@@ -79,7 +80,23 @@ const updateUserRoleController = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/admin/users
+ * Returns all users with id, email, name, role, and dataAccess.
+ */
+const listUsersController = async (req, res) => {
+  try {
+    const User = mongoose.models.User;
+    const users = await User.find({}, 'email name role dataAccess').lean();
+    return res.status(200).json({ users });
+  } catch (err) {
+    logger.error('[AdminController] listUsersController error:', err);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
 module.exports = {
+  listUsersController,
   updateUserDataAccessController,
   updateUserRoleController,
 };
