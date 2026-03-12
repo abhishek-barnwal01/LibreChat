@@ -29,7 +29,7 @@ const DATABRICKS_FILTER_COLUMNS = [
 // In-memory cache for Databricks filter options
 let filterOptionsCache = null;
 let filterOptionsCacheTime = 0;
-const FILTER_OPTIONS_CACHE_TTL = 1000 * 60 * 60; // 1 hour
+const FILTER_OPTIONS_CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
 /**
  * Build an Azure List Blobs URL for a given folder prefix, including metadata.
