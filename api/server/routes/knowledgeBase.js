@@ -13,6 +13,24 @@ const SAS_TOKEN =
 // Folders to include in the knowledge base listing
 const FOLDERS = ['soaps/', 'Household_Insecticides/'];
 
+// Databricks configuration (from environment variables)
+const DATABRICKS_HOST = process.env.DATABRICKS_HOST;
+const DATABRICKS_TOKEN = process.env.DATABRICKS_TOKEN;
+const DATABRICKS_WAREHOUSE_ID = process.env.DATABRICKS_WAREHOUSE_ID;
+const DATABRICKS_TABLE = 'hive_metastore.silver.gcpl_master_data_table';
+const DATABRICKS_FILTER_COLUMNS = [
+  'file_category_det',
+  'file_sub_category_det',
+  'product_category_det',
+  'country_det',
+  'brand_det',
+];
+
+// In-memory cache for Databricks filter options
+let filterOptionsCache = null;
+let filterOptionsCacheTime = 0;
+const FILTER_OPTIONS_CACHE_TTL = 1000 * 60 * 60; // 1 hour
+
 /**
  * Build an Azure List Blobs URL for a given folder prefix, including metadata.
  */
@@ -73,6 +91,98 @@ function parseXmlBlobs(xmlText) {
 }
 
 /**
+ * Execute a Databricks SQL statement via the SQL Statement Execution API.
+ * Handles warehouse cold-start by polling for up to ~3 minutes.
+ */
+async function executeDatabricksStatement(statement) {
+  if (!DATABRICKS_HOST || !DATABRICKS_TOKEN || !DATABRICKS_WAREHOUSE_ID) {
+    throw new Error(
+      'Missing Databricks env vars: ' +
+        [
+          !DATABRICKS_HOST && 'DATABRICKS_HOST',
+          !DATABRICKS_TOKEN && 'DATABRICKS_TOKEN',
+          !DATABRICKS_WAREHOUSE_ID && 'DATABRICKS_WAREHOUSE_ID',
+        ]
+          .filter(Boolean)
+          .join(', '),
+    );
+  }
+
+  const headers = {
+    Authorization: `Bearer ${DATABRICKS_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
+
+  // Submit the statement; wait_timeout=0s returns immediately with a statement_id
+  const submitResp = await axios.post(
+    `${DATABRICKS_HOST}/api/2.0/sql/statements`,
+    {
+      warehouse_id: DATABRICKS_WAREHOUSE_ID,
+      statement,
+      wait_timeout: '0s',
+    },
+    { headers, timeout: 30000 },
+  );
+
+  const statementId = submitResp.data?.statement_id;
+  const initialState = submitResp.data?.status?.state;
+
+  // If it completed immediately (warehouse was warm), return the result
+  if (initialState === 'SUCCEEDED') {
+    return submitResp.data;
+  }
+  if (initialState === 'FAILED' || initialState === 'CANCELED' || initialState === 'CLOSED') {
+    throw new Error(
+      `Databricks statement ${initialState}: ${JSON.stringify(submitResp.data?.status?.error)}`,
+    );
+  }
+
+  // Poll for completion (handles PENDING state during warehouse cold-start)
+  // Retry up to 18 times with 10s intervals = ~3 minutes max wait
+  const MAX_POLLS = 18;
+  const POLL_INTERVAL_MS = 10000;
+
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+
+    const pollResp = await axios.get(
+      `${DATABRICKS_HOST}/api/2.0/sql/statements/${statementId}`,
+      { headers, timeout: 30000 },
+    );
+
+    const state = pollResp.data?.status?.state;
+    if (state === 'SUCCEEDED') {
+      return pollResp.data;
+    }
+    if (state === 'FAILED' || state === 'CANCELED' || state === 'CLOSED') {
+      throw new Error(
+        `Databricks statement ${state}: ${JSON.stringify(pollResp.data?.status?.error)}`,
+      );
+    }
+
+    logger.info(
+      `[KnowledgeBase] Databricks statement ${statementId} still ${state}, poll ${i + 1}/${MAX_POLLS}`,
+    );
+  }
+
+  throw new Error(`Databricks statement ${statementId} timed out after ${MAX_POLLS * POLL_INTERVAL_MS / 1000}s`);
+}
+
+/**
+ * Query Databricks for distinct values of a single column.
+ */
+async function queryDatabricksColumn(column) {
+  const statement = `SELECT DISTINCT \`${column}\` FROM ${DATABRICKS_TABLE} WHERE \`${column}\` IS NOT NULL AND TRIM(\`${column}\`) != '' ORDER BY \`${column}\``;
+  const data = await executeDatabricksStatement(statement);
+
+  const rows = data?.result?.data_array || [];
+  const excludedLower = new Set(['na', 'n/a', 'null', '']);
+  return rows
+    .map((row) => (row[0] || '').trim())
+    .filter((val) => val && !excludedLower.has(val.toLowerCase()));
+}
+
+/**
  * GET /api/knowledge-base/blobs
  * Proxy endpoint to fetch blob list from Azure Storage.
  * Fetches from multiple folders in parallel and merges results.
@@ -111,24 +221,69 @@ router.get('/blobs', requireJwtAuth, async (req, res) => {
     logger.error('[KnowledgeBase] Error fetching blob list:', error.message);
 
     if (error.response) {
-      // Azure returned an error response
       res.status(error.response.status).json({
         error: 'Failed to fetch blob list from Azure Storage',
         message: error.response.data || error.message,
       });
     } else if (error.request) {
-      // Request was made but no response received
       res.status(503).json({
         error: 'Azure Storage is not responding',
         message: 'Unable to connect to Azure Blob Storage',
       });
     } else {
-      // Something else went wrong
       res.status(500).json({
         error: 'Internal server error',
         message: error.message,
       });
     }
+  }
+});
+
+/**
+ * GET /api/knowledge-base/filter-options
+ * Fetches clean, distinct filter values from Databricks.
+ * Results are cached in memory for 1 hour.
+ */
+router.get('/filter-options', requireJwtAuth, async (req, res) => {
+  try {
+    // Return cached results if fresh
+    if (filterOptionsCache && Date.now() - filterOptionsCacheTime < FILTER_OPTIONS_CACHE_TTL) {
+      logger.info('[KnowledgeBase] Returning cached filter options from Databricks');
+      return res.json(filterOptionsCache);
+    }
+
+    logger.info('[KnowledgeBase] Fetching filter options from Databricks');
+
+    // Query all columns in parallel
+    const results = await Promise.all(
+      DATABRICKS_FILTER_COLUMNS.map(async (column) => {
+        const values = await queryDatabricksColumn(column);
+        return [column, values];
+      }),
+    );
+
+    const filterOptions = Object.fromEntries(results);
+
+    // Cache the results
+    filterOptionsCache = filterOptions;
+    filterOptionsCacheTime = Date.now();
+
+    res.json(filterOptions);
+    logger.info('[KnowledgeBase] Successfully fetched filter options from Databricks');
+  } catch (error) {
+    const errMsg = error.message || 'Unknown error';
+    const errCode = error.code || '';
+    const httpStatus = error.response?.status;
+    const respBody = error.response?.data
+      ? JSON.stringify(error.response.data).slice(0, 300)
+      : '';
+    logger.error(
+      `[KnowledgeBase] Error fetching filter options from Databricks: ${errMsg} | code=${errCode} | httpStatus=${httpStatus} | body=${respBody}`,
+    );
+    res.status(500).json({
+      error: 'Failed to fetch filter options from Databricks',
+      message: errMsg,
+    });
   }
 });
 

@@ -16,6 +16,8 @@ export interface BlobListResponse {
   totalCount: number;
 }
 
+export type FilterOptionsResponse = Record<string, string[]>;
+
 export const getBlobList = async (): Promise<BlobListResponse> => {
   try {
     const response = await request.get('/api/knowledge-base/blobs');
@@ -34,6 +36,31 @@ export const useGetBlobListQuery = (
     () => getBlobList(),
     {
       staleTime: 1000 * 60 * 5, // 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      ...config,
+    },
+  );
+};
+
+export const getFilterOptions = async (): Promise<FilterOptionsResponse> => {
+  try {
+    const response = await request.get('/api/knowledge-base/filter-options');
+    return response as FilterOptionsResponse;
+  } catch (error) {
+    console.error('Error fetching filter options:', error);
+    throw error;
+  }
+};
+
+export const useGetFilterOptionsQuery = (
+  config?: UseQueryOptions<FilterOptionsResponse>,
+): QueryObserverResult<FilterOptionsResponse, unknown> => {
+  return useQuery<FilterOptionsResponse>(
+    ['filterOptions'],
+    () => getFilterOptions(),
+    {
+      staleTime: 1000 * 60 * 60, // 1 hour (master data changes infrequently)
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       ...config,

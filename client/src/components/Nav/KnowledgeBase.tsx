@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, FileText, Download, Search, SlidersHorizontal, ChevronDown } from 'lucide-react';
-import { useGetBlobListQuery } from '~/data-provider';
+import { useGetBlobListQuery, useGetFilterOptionsQuery, type BlobDocument } from '~/data-provider';
 import { cn } from '~/utils';
 
 /** Extract just the filename from a blob path like "soaps/filename.pdf" */
@@ -23,6 +23,7 @@ const FILTER_LABEL_OVERRIDES: Record<string, string> = {
   brand_det: 'Brand',
   country_det: 'Country',
   file_category_det: 'File Category',
+  file_sub_category_det: 'File Sub-Category',
   product_category_det: 'Product Category',
   file_time_period_det: 'File Time Period',
 };
@@ -54,12 +55,43 @@ const formatFolderName = (folder: string): string => {
 };
 
 /** Metadata keys to exclude from filter dropdowns */
-const EXCLUDED_FILTER_KEYS = new Set(['file_path', 'document_id', 'source_system', 'file_category_ai', 'product_category_ai', 'brand_ai', 'country_ai', 'file_time_period_ai']);
+const EXCLUDED_FILTER_KEYS = new Set(['file_path', 'document_id', 'source_system', 'file_category_ai', 'product_category_ai', 'brand_ai', 'country_ai', 'file_time_period_ai', 'file_created_date_det', 'region_det']);
+
+/** Metadata keys whose dropdown values come from Databricks (clean master data) */
+const DATABRICKS_FILTER_KEYS = new Set([
+  'file_category_det',
+  'file_sub_category_det',
+  'product_category_det',
+  'country_det',
+  'brand_det',
+]);
 
 /** Check if a metadata value should be excluded from filter options */
 const isExcludedValue = (value: string): boolean => {
   const lower = value.toLowerCase().trim();
   return lower === '' || lower === 'na' || lower === 'n/a' || lower === 'null';
+};
+
+/**
+ * Split a compound blob metadata value by all known delimiters (::, |, ,)
+ * e.g. "Godrej::Cinthol" → ["Godrej", "Cinthol"]
+ *      "Good Knight, HIT" → ["Good Knight", "HIT"]
+ *      "Lux|Dove"         → ["Lux", "Dove"]
+ */
+const splitMetadataValue = (value: string): string[] => {
+  return value.split(/::|\||,/).map((v) => v.trim()).filter(Boolean);
+};
+
+/**
+ * Check if a document's metadata value for a Databricks key matches
+ * any of the selected filter values (contains/segment matching).
+ */
+const matchesDatabricksFilter = (docValue: string | undefined, selectedValues: string[]): boolean => {
+  if (!docValue) {
+    return false;
+  }
+  const segments = splitMetadataValue(docValue);
+  return segments.some((seg) => selectedValues.includes(seg));
 };
 
 /* ------------------------------------------------------------------ */
@@ -169,41 +201,74 @@ const DOWNLOAD_SAS_TOKEN = 'sv=2024-11-04&ss=bfqt&srt=co&sp=rwdlacupyx&se=2026-0
 
 const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
   const { data, isLoading, error } = useGetBlobListQuery();
+  const { data: databricksOptions } = useGetFilterOptionsQuery();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
 
-  // Static list of valid filter keys (computed once from all documents)
+  // Build the list of filter keys to show:
+  // 1. Databricks-sourced keys (always shown if Databricks data loaded)
+  // 2. Other blob metadata keys with 2+ unique values (excluding Databricks + excluded keys)
   const allFilterKeys = useMemo(() => {
-    if (!data?.documents) {
-      return [];
-    }
-    const keyCounts: Record<string, Set<string>> = {};
-    data.documents.forEach((doc) => {
-      if (!doc.metadata) {
-        return;
+    const keys: string[] = [];
+
+    // Databricks keys first (in a logical order)
+    if (databricksOptions) {
+      for (const key of Object.keys(databricksOptions).sort()) {
+        if (databricksOptions[key]?.length > 0) {
+          keys.push(key);
+        }
       }
-      Object.entries(doc.metadata).forEach(([key, value]) => {
-        if (EXCLUDED_FILTER_KEYS.has(key)) {
+    }
+
+    // Additional blob-derived keys (non-Databricks, non-excluded)
+    if (data?.documents) {
+      const keyCounts: Record<string, Set<string>> = {};
+      data.documents.forEach((doc) => {
+        if (!doc.metadata) {
           return;
         }
-        if (!value || isExcludedValue(value)) {
-          return;
-        }
-        if (!keyCounts[key]) {
-          keyCounts[key] = new Set();
-        }
-        keyCounts[key].add(value.trim());
+        Object.entries(doc.metadata).forEach(([key, value]) => {
+          if (EXCLUDED_FILTER_KEYS.has(key) || DATABRICKS_FILTER_KEYS.has(key)) {
+            return;
+          }
+          if (!value || isExcludedValue(value)) {
+            return;
+          }
+          if (!keyCounts[key]) {
+            keyCounts[key] = new Set();
+          }
+          keyCounts[key].add(value.trim());
+        });
       });
-    });
-    // Only include keys with at least 2 distinct values (useful for filtering)
-    return Object.entries(keyCounts)
-      .filter(([, values]) => values.size >= 2)
-      .map(([key]) => key)
-      .sort();
-  }, [data?.documents]);
+      Object.entries(keyCounts)
+        .filter(([, values]) => values.size >= 2)
+        .map(([key]) => key)
+        .sort()
+        .forEach((key) => keys.push(key));
+    }
+
+    return keys;
+  }, [data?.documents, databricksOptions]);
+
+  // Helper: apply a single filter to a document set
+  const applyFilter = useCallback(
+    (docs: BlobDocument[], filterKey: string, values: string[]) => {
+      if (DATABRICKS_FILTER_KEYS.has(filterKey)) {
+        // Contains matching: split compound blob values and check segments
+        return docs.filter((doc) => matchesDatabricksFilter(doc.metadata?.[filterKey], values));
+      }
+      // Exact matching for non-Databricks keys
+      return docs.filter((doc) => {
+        const docValue = doc.metadata?.[filterKey];
+        return docValue != null && values.includes(docValue.trim());
+      });
+    },
+    [],
+  );
 
   // Interlinked filter options: for each key, compute available values from
-  // documents that match ALL OTHER active filters (Excel-style cascading)
+  // documents that match ALL OTHER active filters (Excel-style cascading).
+  // Databricks keys use contains matching and intersect with Databricks clean values.
   const filterOptions = useMemo(() => {
     if (!data?.documents || allFilterKeys.length === 0) {
       return {};
@@ -224,29 +289,43 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
       // Apply all active metadata filters except the current key
       Object.entries(activeFilters).forEach(([filterKey, values]) => {
         if (filterKey !== key && values.length > 0) {
-          docs = docs.filter((doc) => {
-            const docValue = doc.metadata?.[filterKey];
-            return docValue != null && values.includes(docValue.trim());
-          });
+          docs = applyFilter(docs, filterKey, values);
         }
       });
 
-      // Collect unique valid values from the remaining documents
-      const values = new Set<string>();
-      docs.forEach((doc) => {
-        const value = doc.metadata?.[key];
-        if (value && !isExcludedValue(value)) {
-          values.add(value.trim());
+      if (DATABRICKS_FILTER_KEYS.has(key) && databricksOptions?.[key]) {
+        // For Databricks keys: collect split segments from remaining docs,
+        // then intersect with Databricks clean values
+        const blobSegments = new Set<string>();
+        docs.forEach((doc) => {
+          const value = doc.metadata?.[key];
+          if (value) {
+            splitMetadataValue(value).forEach((seg) => {
+              if (!isExcludedValue(seg)) {
+                blobSegments.add(seg);
+              }
+            });
+          }
+        });
+        // Only show Databricks values that exist in the filtered blob data
+        result[key] = databricksOptions[key].filter((v) => blobSegments.has(v));
+      } else {
+        // For non-Databricks keys: collect unique values directly
+        const values = new Set<string>();
+        docs.forEach((doc) => {
+          const value = doc.metadata?.[key];
+          if (value && !isExcludedValue(value)) {
+            values.add(value.trim());
+          }
+        });
+        if (values.size >= 1) {
+          result[key] = Array.from(values).sort((a, b) => a.localeCompare(b));
         }
-      });
-
-      if (values.size >= 1) {
-        result[key] = Array.from(values).sort((a, b) => a.localeCompare(b));
       }
     }
 
     return result;
-  }, [data?.documents, allFilterKeys, activeFilters, searchQuery]);
+  }, [data?.documents, allFilterKeys, activeFilters, searchQuery, databricksOptions, applyFilter]);
 
   // Combined filtering: search query + metadata filters
   const filteredDocuments = useMemo(() => {
@@ -264,15 +343,12 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
     // Metadata filters (AND across keys, OR within same key)
     Object.entries(activeFilters).forEach(([key, values]) => {
       if (values.length > 0) {
-        docs = docs.filter((doc) => {
-          const docValue = doc.metadata?.[key];
-          return docValue != null && values.includes(docValue.trim());
-        });
+        docs = applyFilter(docs, key, values);
       }
     });
 
     return docs;
-  }, [data?.documents, searchQuery, activeFilters]);
+  }, [data?.documents, searchQuery, activeFilters, applyFilter]);
 
   const handleFilterChange = useCallback((key: string, values: string[]) => {
     setActiveFilters((prev) => {
