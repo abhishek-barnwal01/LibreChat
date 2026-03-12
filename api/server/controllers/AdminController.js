@@ -23,7 +23,15 @@ const updateUserDataAccessController = async (req, res) => {
       return res.status(404).json({ message: `No user found with email: ${email}` });
     }
 
-    const updated = await updateUser(target._id.toString(), { dataAccess: dataAccess ?? null });
+    // Use a direct Mongoose update without runValidators to avoid [String] + null
+    // type-coercion failures that silently drop the field with the generic updateUser helper.
+    const User = mongoose.models.User;
+    const updated = await User.findByIdAndUpdate(
+      target._id,
+      { $set: { dataAccess: dataAccess ?? null } },
+      { new: true, runValidators: false },
+    ).lean();
+
     logger.info(`[AdminController] dataAccess updated for ${email} by admin ${req.user.email}`);
 
     return res.status(200).json({
