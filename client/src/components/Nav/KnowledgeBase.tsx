@@ -294,21 +294,8 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
       });
 
       if (DATABRICKS_FILTER_KEYS.has(key) && databricksOptions?.[key]) {
-        // For Databricks keys: collect split segments from remaining docs,
-        // then intersect with Databricks clean values
-        const blobSegments = new Set<string>();
-        docs.forEach((doc) => {
-          const value = doc.metadata?.[key];
-          if (value) {
-            splitMetadataValue(value).forEach((seg) => {
-              if (!isExcludedValue(seg)) {
-                blobSegments.add(seg);
-              }
-            });
-          }
-        });
-        // Only show Databricks values that exist in the filtered blob data
-        result[key] = databricksOptions[key].filter((v) => blobSegments.has(v));
+        // For Databricks keys: show all clean values from Databricks master data
+        result[key] = databricksOptions[key];
       } else {
         // For non-Databricks keys: collect unique values directly
         const values = new Set<string>();

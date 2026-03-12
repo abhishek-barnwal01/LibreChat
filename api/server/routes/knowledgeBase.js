@@ -29,7 +29,7 @@ const DATABRICKS_FILTER_COLUMNS = [
 // In-memory cache for Databricks filter options
 let filterOptionsCache = null;
 let filterOptionsCacheTime = 0;
-const FILTER_OPTIONS_CACHE_TTL = 1000 * 60 * 60; // 1 hour
+const FILTER_OPTIONS_CACHE_TTL = 1000 * 60 * 5; // 5 minutes
 
 /**
  * Build an Azure List Blobs URL for a given folder prefix, including metadata.
@@ -114,12 +114,16 @@ async function executeDatabricksStatement(statement) {
   };
 
   // Submit the statement; wait_timeout=0s returns immediately with a statement_id
+  // disposition=INLINE + row_limit ensures all rows come back in a single response chunk
   const submitResp = await axios.post(
     `${DATABRICKS_HOST}/api/2.0/sql/statements`,
     {
       warehouse_id: DATABRICKS_WAREHOUSE_ID,
       statement,
       wait_timeout: '0s',
+      disposition: 'INLINE',
+      format: 'JSON_ARRAY',
+      row_limit: 10000,
     },
     { headers, timeout: 30000 },
   );
@@ -169,13 +173,40 @@ async function executeDatabricksStatement(statement) {
 }
 
 /**
+ * Fetch all result chunks for a completed Databricks statement.
+ * The first chunk is in the initial response; subsequent chunks require separate GET requests.
+ */
+async function fetchAllRows(data) {
+  const headers = {
+    Authorization: `Bearer ${DATABRICKS_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
+
+  let allRows = data?.result?.data_array || [];
+  let nextChunkLink = data?.result?.next_chunk_internal_link;
+  const statementId = data?.statement_id;
+
+  while (nextChunkLink && statementId) {
+    const chunkResp = await axios.get(
+      `${DATABRICKS_HOST}${nextChunkLink}`,
+      { headers, timeout: 30000 },
+    );
+    const chunkRows = chunkResp.data?.data_array || chunkResp.data?.result?.data_array || [];
+    allRows = allRows.concat(chunkRows);
+    nextChunkLink = chunkResp.data?.next_chunk_internal_link || chunkResp.data?.result?.next_chunk_internal_link;
+  }
+
+  return allRows;
+}
+
+/**
  * Query Databricks for distinct values of a single column.
  */
 async function queryDatabricksColumn(column) {
   const statement = `SELECT DISTINCT \`${column}\` FROM ${DATABRICKS_TABLE} WHERE \`${column}\` IS NOT NULL AND TRIM(\`${column}\`) != '' ORDER BY \`${column}\``;
   const data = await executeDatabricksStatement(statement);
 
-  const rows = data?.result?.data_array || [];
+  const rows = await fetchAllRows(data);
   const excludedLower = new Set(['na', 'n/a', 'null', '']);
   return rows
     .map((row) => (row[0] || '').trim())
@@ -258,6 +289,7 @@ router.get('/filter-options', requireJwtAuth, async (req, res) => {
     const results = await Promise.all(
       DATABRICKS_FILTER_COLUMNS.map(async (column) => {
         const values = await queryDatabricksColumn(column);
+        logger.info(`[KnowledgeBase] Databricks column ${column}: ${values.length} distinct values`);
         return [column, values];
       }),
     );
