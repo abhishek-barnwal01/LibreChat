@@ -21,6 +21,11 @@ const getFolderName = (fullPath: string): string => {
 /** Custom display labels for specific metadata keys */
 const FILTER_LABEL_OVERRIDES: Record<string, string> = {
   brand_det: 'Brand',
+  country_det: 'Country',
+  file_category_det: 'File Category',
+  file_sub_category_det: 'File Sub-Category',
+  product_category_det: 'Product Category',
+  file_time_period_det: 'File Time Period',
 };
 
 /** Convert metadata key like "file_category_ai" to "File Category AI" */
@@ -50,13 +55,13 @@ const formatFolderName = (folder: string): string => {
 };
 
 /** Metadata keys to exclude from filter dropdowns */
-const EXCLUDED_FILTER_KEYS = new Set(['file_path', 'document_id', 'source_system']);
+const EXCLUDED_FILTER_KEYS = new Set(['file_path', 'document_id', 'source_system', 'file_category_ai', 'product_category_ai', 'brand_ai', 'country_ai', 'file_time_period_ai', 'file_created_date_det', 'region_det']);
 
 /** Metadata keys whose dropdown values come from Databricks (clean master data) */
 const DATABRICKS_FILTER_KEYS = new Set([
   'file_category_det',
+  'file_sub_category_det',
   'product_category_det',
-  'file_time_period_det',
   'country_det',
   'brand_det',
 ]);
