@@ -424,34 +424,6 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
         yield "data: [DONE]\n\n"
 
 
-@app.post("/admin/cache/invalidate/{user_id}")
-async def cache_invalidate(user_id: str, request: Request):
-    """Bust the in-process user cache for *user_id*.
-
-    Called by the LibreChat backend immediately after an admin updates a
-    user's dataAccess field, so the next RAG request picks up the new rules
-    without waiting for the TTL to expire.
-
-    Protected by a shared secret sent as the X-Cache-Secret header.
-    Configure the same secret in both services:
-      - FastAPI .env:     CACHE_INVALIDATE_SECRET=<secret>
-      - LibreChat .env:   GCPL_RAG_CACHE_SECRET=<secret>
-
-    If CACHE_INVALIDATE_SECRET is empty (dev default) the check is skipped.
-    """
-    from config import CACHE_INVALIDATE_SECRET
-    from user_resolver import invalidate_user
-
-    expected = CACHE_INVALIDATE_SECRET
-    if expected:
-        provided = request.headers.get("X-Cache-Secret", "")
-        if provided != expected:
-            return JSONResponse({"error": "Forbidden"}, status_code=403)
-
-    invalidate_user(user_id)
-    return {"invalidated": user_id}
-
-
 @app.get("/heartbeat")
 async def heartbeat():
     """Basic health check endpoint."""
