@@ -1,51 +1,53 @@
 """Role-based access control for Azure AI Search and SQL queries.
 
-Rules are loaded from access_rules.json (same directory).
-  - search_categories: exact product_category_ai values for OData filter
-  - sql_categories:    exact product_category_det values for SQL WHERE
-  - countries:         shared between both (country_ai / country_det)
-null = unrestricted (full access).
+Access rules are read from MongoDB users.dataAccess (the same field used
+by the LibreChat agent's AzureAISearch tool), so a single admin action
+in the LibreChat UI controls access for BOTH the LibreChat agent and
+the GCPL RAG custom endpoint (port 5001).
+
+MongoDB dataAccess schema:
+  {
+    "productCategories": ["Soaps", "Detergents"] | null,  # null = unrestricted
+    "countries":         ["India", "UK"]          | null,  # null = unrestricted
+  }
+
+null = unrestricted (full access to that dimension).
 """
 
-import json
-import os
 from typing import Optional, Dict, Any
-from user_resolver import resolve_email
-
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "access_rules.json")
-_config: Optional[Dict] = None
-
-
-def _load_config() -> Dict:
-    global _config
-    if _config is None:
-        with open(_CONFIG_PATH) as f:
-            _config = json.load(f)
-    return _config
-
-
-def reload_config() -> None:
-    """Force reload of access_rules.json (useful after edits without restart)."""
-    global _config
-    _config = None
-    _load_config()
+from user_resolver import resolve_data_access
 
 
 def get_access_rules(user_id: str) -> Dict[str, Any]:
     """Return access rules for a user.
 
     user_id is the LibreChat MongoDB ObjectId received from X-User-Id header.
-    It is resolved to an email first (via user_resolver) so that access_rules.json
-    can use readable email addresses as keys instead of opaque ObjectIds.
-    Falls back to default_role if the user is not listed.
+    Reads dataAccess directly from MongoDB users collection — the same source
+    used by the LibreChat AzureAISearch tool.
+
+    Returns a dict with:
+      - search_categories: list of product_category_ai values for OData filter (or None)
+      - sql_categories:    list of product_category_det values for SQL WHERE (or None)
+      - countries:         list of country values shared between both (or None)
     """
-    cfg = _load_config()
-    email = resolve_email(user_id)
-    # Try email first, then raw user_id (covers non-ObjectId IDs / test cases)
-    role = cfg["users"].get(email) or cfg["users"].get(user_id) or cfg.get("default_role", "full_access")
-    rules = cfg["roles"].get(role, {"search_categories": None, "sql_categories": None, "countries": None})
-    print(f"🔒 Access rules for '{email}': role='{role}' | "
-          f"categories={rules.get('search_categories')} | countries={rules.get('countries')}")
+    data_access = resolve_data_access(user_id)
+
+    if data_access is None:
+        # No dataAccess field → full access
+        rules = {"search_categories": None, "sql_categories": None, "countries": None}
+        print(f"🔒 Access rules for user '{user_id}': full access (no dataAccess set)")
+        return rules
+
+    product_categories = data_access.get("productCategories") or None
+    countries = data_access.get("countries") or None
+
+    rules = {
+        "search_categories": product_categories,  # used for Azure AI Search OData filter
+        "sql_categories": product_categories,      # used for SQL WHERE clause
+        "countries": countries,
+    }
+    print(f"🔒 Access rules for user '{user_id}': "
+          f"categories={product_categories} | countries={countries}")
     return rules
 
 

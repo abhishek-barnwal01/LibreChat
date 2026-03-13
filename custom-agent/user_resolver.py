@@ -59,3 +59,43 @@ def resolve_email(user_id: str) -> str:
         print(f"⚠️  Could not resolve user email for '{user_id}': {e}")
 
     return user_id
+
+
+@lru_cache(maxsize=512)
+def resolve_data_access(user_id: str) -> dict | None:
+    """Return the dataAccess dict for a LibreChat user ObjectId.
+
+    Returns a dict like {"productCategories": ["Soaps"], "countries": None}
+    or None if the user has unrestricted access (no dataAccess field set).
+
+    Results are cached per user_id for the lifetime of the process.
+    Restart the server after updating dataAccess in MongoDB to pick up changes.
+    """
+    if not user_id or user_id in ("anonymous",):
+        return None  # anonymous = full access
+
+    try:
+        from bson import ObjectId
+        from bson.errors import InvalidId
+        col = _get_collection()
+        if col is None:
+            return None
+        try:
+            oid = ObjectId(user_id)
+        except InvalidId:
+            # Try lookup by email if user_id is not an ObjectId
+            doc = col.find_one({"email": user_id.lower()}, {"dataAccess": 1})
+            if doc:
+                data_access = doc.get("dataAccess")
+                print(f"🔒 dataAccess for '{user_id}': {data_access}")
+                return data_access
+            return None
+        doc = col.find_one({"_id": oid}, {"dataAccess": 1})
+        if doc:
+            data_access = doc.get("dataAccess")
+            print(f"🔒 dataAccess for '{user_id}': {data_access}")
+            return data_access
+    except Exception as e:
+        print(f"⚠️  Could not resolve dataAccess for '{user_id}': {e}")
+
+    return None
