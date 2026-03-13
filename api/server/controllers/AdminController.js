@@ -35,6 +35,17 @@ const updateUserDataAccessController = async (req, res) => {
 
     logger.info(`[AdminController] dataAccess updated for ${email} by admin ${req.user.email}`);
 
+    // Fire-and-forget: bust the FastAPI server's in-process user cache so the
+    // new dataAccess rules are picked up immediately without a server restart.
+    const ragUrl = process.env.GCPL_RAG_URL || 'http://localhost:5001';
+    const cacheSecret = process.env.GCPL_RAG_CACHE_SECRET || '';
+    fetch(`${ragUrl}/admin/cache/invalidate/${target._id}`, {
+      method: 'POST',
+      headers: cacheSecret ? { 'X-Cache-Secret': cacheSecret } : {},
+    }).catch((e) =>
+      logger.warn(`[AdminController] RAG cache invalidation failed for ${email}: ${e.message}`),
+    );
+
     return res.status(200).json({
       message: 'Data access updated successfully',
       user: { email: updated.email, dataAccess: updated.dataAccess },

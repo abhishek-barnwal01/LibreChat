@@ -33,3 +33,13 @@ POSTGRES_DB = os.getenv("POSTGRES_DB", "qt328pp")
 
 # MongoDB (LibreChat — used to resolve user ObjectId → email)
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/LibreChat")
+
+# Cache
+# How long (seconds) to cache MongoDB lookups before re-querying.
+# The LibreChat backend calls /admin/cache/invalidate/{user_id} for instant
+# propagation; this TTL is just a safety-net fallback.
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "300"))
+
+# Shared secret for the cache-invalidation endpoint.
+# Set this to the same value as GCPL_RAG_CACHE_SECRET in the LibreChat .env.
+CACHE_INVALIDATE_SECRET = os.getenv("CACHE_INVALIDATE_SECRET", "")
