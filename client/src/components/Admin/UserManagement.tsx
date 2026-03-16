@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Users, ShieldCheck, ChevronDown, Check, Loader2 } from 'lucide-react';
 import { SystemRoles } from 'librechat-data-provider';
 import {
@@ -210,11 +211,15 @@ function RolePicker({
   const [dropdownStyle, setDropdownStyle] = useState<{ top: number; right: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const portalRef = useRef<HTMLDivElement | null>(null);
   const isSelf = user.email === currentAdminEmail;
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      const insideButton = ref.current?.contains(target);
+      const insidePortal = portalRef.current?.contains(target);
+      if (!insideButton && !insidePortal) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -280,31 +285,40 @@ function RolePicker({
         )}
       </button>
 
-      {open && dropdownStyle && (
-        <div
-          className="fixed z-[200] w-32 rounded-lg border border-border-light bg-surface-primary shadow-xl"
-          style={{ top: dropdownStyle.top, right: dropdownStyle.right }}
-        >
-          {ROLES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                if (r !== user.role) mutate({ email: user.email, role: r });
-              }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-surface-tertiary ${
-                r === user.role ? 'font-semibold text-green-600' : 'text-text-primary'
-              }`}
-            >
-              <div className="flex h-4 w-4 shrink-0 items-center justify-center">
-                {r === user.role && <Check className="h-3.5 w-3.5 text-green-500" />}
-              </div>
-              {r}
-            </button>
-          ))}
-        </div>
-      )}
+      {open &&
+        dropdownStyle &&
+        createPortal(
+          <div
+            ref={portalRef}
+            style={{
+              position: 'fixed',
+              top: dropdownStyle.top,
+              right: dropdownStyle.right,
+              zIndex: 9999,
+            }}
+            className="w-32 rounded-lg border border-border-light bg-surface-primary shadow-xl"
+          >
+            {ROLES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  if (r !== user.role) mutate({ email: user.email, role: r });
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-surface-tertiary ${
+                  r === user.role ? 'font-semibold text-green-600' : 'text-text-primary'
+                }`}
+              >
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center">
+                  {r === user.role && <Check className="h-3.5 w-3.5 text-green-500" />}
+                </div>
+                {r}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
