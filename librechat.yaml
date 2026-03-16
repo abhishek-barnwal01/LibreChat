@@ -206,6 +206,24 @@ mcpServers:
 
 # Definition of custom endpoints
 endpoints:
+  azureOpenAI:
+    titleModel: "gpt-5"
+    plugins: false
+    assistants: false
+    groups:
+      - group: "ey-sandbox" # arbitrary name
+        apiKey: "${EY_API_KEY}"
+        instanceName: "ue2coai3cqaif01.cognitiveservices.azure.com" # name of the resource group or instance
+        version: "2025-01-01-preview"
+        # baseURL: https://ue2coai3cqaif01.cognitiveservices.azure.com/
+        # additionalHeaders:
+        #   X-Custom-Header: value
+        models:
+          gpt-5:
+            deploymentName: "gpt-5"
+            version: "2025-01-01-preview"
+          gpt-4o:
+            deploymentName: "gpt-4o"
   # assistants:
   #   disableBuilder: false # Disable Assistants Builder Interface by setting to `true`
   #   pollIntervalMs: 3000  # Polling interval for checking assistant updates
@@ -249,6 +267,25 @@ endpoints:
       summaryModel: "gpt-4o"
       modelDisplayLabel: "LiteLLM"
 
+    - name: "GCPL RAG"
+      apiKey: "not-needed"
+      baseURL: "http://localhost:5001/v1"
+      models:
+        default: ["GCPL RAG"]
+        fetch: false
+      titleConvo: true
+      titleModel: "GCPL RAG"
+      summarize: false
+      summaryModel: "GCPL RAG"
+      forcePrompt: false
+      modelDisplayLabel: "GCPL RAG"
+      addParams:
+        stream: true
+      headers:
+        X-User-Id: "{{LIBRECHAT_USER_ID}}"
+        X-Conversation-Id: "{{LIBRECHAT_BODY_CONVERSATIONID}}"
+      iconURL: https://images.crunchbase.com/image/upload/c_pad,f_auto,q_auto:eco,dpr_1/rjqy7ghvjoiu4cd1xjbf
+
     # Groq - Free Demo API
     - name: "groq"
       apiKey: '${GROQ_API_KEY}'
@@ -265,18 +302,18 @@ endpoints:
       modelDisplayLabel: "Groq (Free)"
       iconURL: "https://groq.com/favicon.ico"
 
-    - name: "Excel RAG"
-      apiKey: '${MY_API_KEY}'
-      baseURL: "http://localhost:5001/v1"
-      models:
-        default: ["excel-rag-v1"]
-        fetch: false
-      titleConvo: true
-      titleModel: "excel-rag-v1"
-      summarize: false
-      forcePrompt: false
-      modelDisplayLabel: "Excel RAG"
-      iconURL: "https://groq.com/favicon.ico"
+    # - name: "Excel RAG"
+    #   apiKey: '${MY_API_KEY}'
+    #   baseURL: "http://localhost:5001/v1"
+    #   models:
+    #     default: ["excel-rag-v1"]
+    #     fetch: false
+    #   titleConvo: true
+    #   titleModel: "excel-rag-v1"
+    #   summarize: false
+    #   forcePrompt: false
+    #   modelDisplayLabel: "Excel RAG"
+    #   iconURL: "https://groq.com/favicon.ico"
 
     # Mistral AI Example
     # - name: 'Mistral' # Unique name for the endpoint
@@ -484,13 +521,13 @@ endpoints:
 # cache: true 
  
 memory:
-  disabled: false  # Set to true to completely disable memory
-  personalize: true  # Gives users the ability to toggle memory on/off, true by default
-  tokenLimit: 6000  # Maximum tokens for memory storage
-  messageWindowSize: 5  # Number of recent messages to consider
-  agent:
-    provider: "LiteLLM"
-    model: "gpt-4o"
+  disabled: true  # Set to true to completely disable memory
+  # personalize: true  # Gives users the ability to toggle memory on/off, true by default
+  # tokenLimit: 6000  # Maximum tokens for memory storage
+  # messageWindowSize: 5  # Number of recent messages to consider
+  # agent:
+  #   provider: "LiteLLM"
+  #   model: "gpt-4o"
 
 
 # # mcpServers
