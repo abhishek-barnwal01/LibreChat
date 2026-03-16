@@ -207,7 +207,9 @@ function RolePicker({
   const localize = useLocalize();
   const { showToast } = useToastContext();
   const [open, setOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<{ top: number; right: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const isSelf = user.email === currentAdminEmail;
 
   useEffect(() => {
@@ -217,6 +219,17 @@ function RolePicker({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const handleToggle = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen((p) => !p);
+  };
 
   const { mutate, isLoading } = useUpdateUserRoleMutation({
     onSuccess: (data) => showToast({ status: 'success', message: data.message }),
@@ -244,9 +257,10 @@ function RolePicker({
   return (
     <div ref={ref} className="relative">
       <button
+        ref={buttonRef}
         type="button"
         disabled={isLoading}
-        onClick={() => setOpen((p) => !p)}
+        onClick={handleToggle}
         className={`${badgeBase} ${currentClass} cursor-pointer transition hover:opacity-80 disabled:opacity-50`}
       >
         {isLoading ? (
@@ -259,8 +273,11 @@ function RolePicker({
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 z-50 mt-1 w-32 rounded-lg border border-border-light bg-surface-primary shadow-xl">
+      {open && dropdownStyle && (
+        <div
+          className="fixed z-[200] w-32 rounded-lg border border-border-light bg-surface-primary shadow-xl"
+          style={{ top: dropdownStyle.top, right: dropdownStyle.right }}
+        >
           {ROLES.map((r) => (
             <button
               key={r}
@@ -419,7 +436,7 @@ function UserRoleSection({
         className="w-full rounded-lg border border-border-light bg-surface-secondary px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-1 focus:ring-green-500"
       />
 
-      <div className="max-h-80 overflow-y-auto rounded-lg border border-border-light">
+      <div className="max-h-[65vh] overflow-y-auto rounded-lg border border-border-light">
         {sorted.length === 0 ? (
           <p className="py-6 text-center text-sm text-text-secondary">No users found</p>
         ) : (
@@ -486,7 +503,7 @@ const UserManagement = () => {
         </button>
       </OGDialogTrigger>
 
-      <OGDialogContent className="border-border-light bg-surface-primary text-text-primary w-full max-w-2xl p-8">
+      <OGDialogContent className="border-border-light bg-surface-primary text-text-primary w-full max-w-3xl p-8">
         <OGDialogTitle className="mb-2 flex items-center gap-2 text-lg font-semibold">
           <ShieldCheck className="h-5 w-5 text-green-500" />
           Admin — User Management

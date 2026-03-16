@@ -85,6 +85,7 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
   const [tags, setTags] = useState<string[]>([]);
   const [showLoading, setShowLoading] = useState(false);
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
+  const [chatHistoryOpen, setChatHistoryOpen] = useState(true);
   const listRef = useRef<any>(null);
 
   const search = useRecoilValue(store.search);
@@ -146,157 +147,55 @@ const LeftSidebar = memo(({ toggleNav, onCollapse }: LeftSidebarProps) => {
         <h2 className="text-lg font-semibold text-text-primary">CMI MarketLens</h2>
       </div>
 
-      {/* Single scrollable content area for entire sidebar */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Projects Section */}
-        {/* <CollapsibleSection
-          title="Projects"
-          defaultOpen={true}
-          rightAction={
-            <button
-              type="button"
-              className="rounded p-0.5 hover:bg-surface-hover"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Handle add project
-              }}
-            >
-              <Plus className="h-3 w-3" />
-            </button>
-          }
-        >
+      {/* Flex content area — Documents fixed, Chat History fills remaining space */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Documents Section */}
+        <div className="flex-shrink-0">
+          <CollapsibleSection title="Documents" defaultOpen={true}>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowKnowledgeBase(true)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface-hover"
+              >
+                <FolderOpen className="h-4 w-4" />
+                <span>Knowledge Base</span>
+              </button>
+            </div>
+          </CollapsibleSection>
+        </div>
+
+        {/* Chat History Section — grows to fill remaining space, single scroll via List */}
+        <div className="flex-1 min-h-0 flex flex-col border-b border-border-light">
           <button
             type="button"
-            onClick={() => setSelectedProject('default')}
-            className={cn(
-              'w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all',
-              selectedProject === 'default'
-                ? 'bg-gradient-to-r from-green-500 to-purple-500 text-white shadow-md'
-                : 'bg-surface-primary text-text-primary hover:bg-surface-hover',
-            )}
+            onClick={() => setChatHistoryOpen((p) => !p)}
+            className="flex flex-shrink-0 w-full items-center justify-between px-3 py-3 text-xs font-medium uppercase tracking-wide text-text-secondary"
           >
-            Default Project
+            <div className="flex items-center gap-2">
+              {chatHistoryOpen ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              <span>Chat History</span>
+            </div>
           </button>
-        </CollapsibleSection> */}
-
-        {/* Documents Section */}
-        <CollapsibleSection title="Documents" defaultOpen={true}>
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowKnowledgeBase(true)}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface-hover"
-            >
-              <FolderOpen className="h-4 w-4" />
-              <span>Knowledge Base</span>
-            </button>
-            {/* <button
-              type="button"
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface-hover"
-            >
-              <Upload className="h-4 w-4" />
-              <span>Uploaded Files</span>
-            </button>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-primary transition-colors hover:bg-surface-hover"
-            >
-              <LinkIcon className="h-4 w-4" />
-              <span>Link SharePoint</span>
-            </button> */}
-          </div>
-        </CollapsibleSection>
-
-        {/* Filters Section */}
-        {/* <CollapsibleSection
-          title="Filters"
-          defaultOpen={true}
-          rightAction={
-            <button
-              type="button"
-              className="text-xs font-normal text-blue-500 hover:underline dark:text-blue-400"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedDataset('household');
-                setSelectedGeography('india');
-              }}
-            >
-              Reset
-            </button>
-          }
-        >
-          <div className="space-y-4">
-            
-            <div>
-              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
-                Datasets
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <PillButton
-                  selected={selectedDataset === 'household'}
-                  onClick={() => setSelectedDataset('household')}
-                >
-                  Household Panel
-                </PillButton>
-                <PillButton
-                  selected={selectedDataset === 'retail'}
-                  onClick={() => setSelectedDataset('retail')}
-                >
-                  Retail Audit
-                </PillButton>
-                <PillButton
-                  selected={selectedDataset === 'social'}
-                  onClick={() => setSelectedDataset('social')}
-                >
-                  Social Listening
-                </PillButton>
-              </div>
+          {chatHistoryOpen && (
+            <div className="flex-1 min-h-0 px-1">
+              <Conversations
+                conversations={conversations}
+                moveToTop={moveToTop}
+                toggleNav={handleToggleNav}
+                containerRef={listRef}
+                loadMoreConversations={loadMoreConversations}
+                isLoading={isFetchingNextPage || showLoading || isLoading}
+                isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
+                compact={false}
+              />
             </div>
-
-            
-            <div>
-              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
-                Geography
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <PillButton
-                  selected={selectedGeography === 'india'}
-                  onClick={() => setSelectedGeography('india')}
-                >
-                  India
-                </PillButton>
-                <PillButton
-                  selected={selectedGeography === 'indonesia'}
-                  onClick={() => setSelectedGeography('indonesia')}
-                >
-                  Indonesia
-                </PillButton>
-                <PillButton
-                  selected={selectedGeography === 'africa'}
-                  onClick={() => setSelectedGeography('africa')}
-                >
-                  Africa
-                </PillButton>
-              </div>
-            </div>
-          </div>
-        </CollapsibleSection> */}
-
-        {/* Chat History Section */}
-        <CollapsibleSection title="Chat History" defaultOpen={true}>
-          <div style={{ height: '800px' }}>
-            <Conversations
-              conversations={conversations}
-              moveToTop={moveToTop}
-              toggleNav={handleToggleNav}
-              containerRef={listRef}
-              loadMoreConversations={loadMoreConversations}
-              isLoading={isFetchingNextPage || showLoading || isLoading}
-              isSearchLoading={!!search.query && (search.isTyping || isLoading || isFetching)}
-              compact={false}
-            />
-          </div>
-        </CollapsibleSection>
+          )}
+        </div>
       </div>
 
       {/* Account Settings at bottom */}
