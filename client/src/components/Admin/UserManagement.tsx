@@ -220,11 +220,18 @@ function RolePicker({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const DROPDOWN_HEIGHT = 88; // approx height of 2-item dropdown
+
   const handleToggle = () => {
     if (!open && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top =
+        spaceBelow >= DROPDOWN_HEIGHT + 8
+          ? rect.bottom + 4
+          : rect.top - DROPDOWN_HEIGHT - 4;
       setDropdownStyle({
-        top: rect.bottom + 4,
+        top,
         right: window.innerWidth - rect.right,
       });
     }
