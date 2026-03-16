@@ -55,7 +55,10 @@ export default function Presentation({ children }: { children: React.ReactNode }
     const collapsedPanels = localStorage.getItem('react-resizable-panels:collapsed');
     return typeof collapsedPanels === 'string' ? JSON.parse(collapsedPanels) : true;
   }, []);
-  const fullCollapse = useMemo(() => localStorage.getItem('fullPanelCollapse') === 'true', []);
+  const fullCollapse = useMemo(() => {
+    const stored = localStorage.getItem('fullPanelCollapse');
+    return stored === null ? true : stored === 'true';
+  }, []);
 
   /**
    * Memoize artifacts JSX to prevent recreating it on every render
