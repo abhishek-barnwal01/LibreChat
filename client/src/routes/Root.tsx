@@ -40,10 +40,7 @@ export default function Root() {
     const savedNavVisible = localStorage.getItem('navVisible');
     return savedNavVisible !== null ? JSON.parse(savedNavVisible) : true;
   });
-  const [rightSidebarVisible, setRightSidebarVisible] = useState(() => {
-    const savedRightSidebarVisible = localStorage.getItem('rightSidebarVisible');
-    return savedRightSidebarVisible !== null ? JSON.parse(savedRightSidebarVisible) : true;
-  });
+  const [rightSidebarVisible, setRightSidebarVisible] = useState(false);
 
   const [isHoveringRight, setIsHoveringRight] = useState(false);
   const rightPanelRef = useRef<ImperativePanelHandle>(null);
@@ -136,7 +133,6 @@ export default function Root() {
   const toggleRightSidebar = useCallback(() => {
     setRightSidebarVisible((prev) => {
       const newValue = !prev;
-      localStorage.setItem('rightSidebarVisible', JSON.stringify(newValue));
       if (!newValue) {
         rightPanelRef.current?.collapse();
       } else {
