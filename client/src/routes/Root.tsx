@@ -45,6 +45,10 @@ export default function Root() {
   const [isHoveringRight, setIsHoveringRight] = useState(false);
   const rightPanelRef = useRef<ImperativePanelHandle>(null);
 
+  useEffect(() => {
+    rightPanelRef.current?.collapse();
+  }, []);
+
   const { isAuthenticated, logout } = useAuthContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
