@@ -11,6 +11,52 @@ from utils import safe_utf8, sanitize_any, create_llm
 # app.py generate_stream (streaming). Single source of truth.
 # ---------------------------------------------------------------------------
 
+def build_chart_only_prompt(user_query: str, rag_answer: str) -> str:
+    """
+    Prompt for the RAG → formatter path.
+    The RAG answer was already streamed live to the user.
+    Formatter must output ONLY the chart artifact(s) — no repeated text.
+    """
+    return f"""You are a chart generator for an enterprise RAG system.
+
+The user asked: "{user_query}"
+
+The following answer has ALREADY been displayed to the user word-by-word:
+---
+{rag_answer}
+---
+
+Your ONLY task: extract the numeric data from the answer above and produce Mermaid chart artifact(s) that visualise it.
+
+RULES:
+- Do NOT repeat, reformat, or summarise any text from the answer.
+- Do NOT add headers, bullets, or prose — charts only.
+- Output each chart wrapped in the artifact block below.
+- You may output multiple charts if the data warrants it (e.g. KPI chart + message recall chart).
+- If there is genuinely no numeric data to chart, output nothing at all.
+
+CHART FORMAT:
+:::artifact{{type="application/vnd.mermaid" title="<descriptive title>"}}
+%%{{init: {{'theme':'base'}}}}%%
+xychart-beta
+    title "<chart title>"
+    x-axis [<quoted labels>]
+    y-axis "<axis label>" 0 --> <max>
+    bar [<values>]
+:::
+
+RULES FOR CHART SYNTAX:
+- Bar/line charts: use xychart-beta keyword
+- Always include: title, x-axis, y-axis, data series
+- NO special chars in labels (%, +, &, $) — spell out "percent", "dollars"
+- Y-axis range: "0 --> maxValue" (use arrows, not dashes)
+- Pie charts: use "pie title" syntax
+- Multiple bars/lines: add multiple "bar [...]" or "line [...]" rows
+
+Output the chart artifact(s) only. Begin immediately — no preamble.
+"""
+
+
 def build_formatter_prompt(user_query: str, rag_answer: str, confidence: float) -> str:
     return f"""You are a professional content formatter for an enterprise RAG system.
 
@@ -261,8 +307,6 @@ def formatter_node(state: PipelineState) -> Dict[str, Any]:
     print("="*70)
 
     user_query = state.user_query
-    rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
-    confidence = state.evaluation.confidence_score if state.evaluation else 0.8
 
     # DEBUG: Print the full RAG output
     print("\n" + "-"*70)
@@ -287,21 +331,21 @@ def formatter_node(state: PipelineState) -> Dict[str, Any]:
             })
         }
 
-    # ✅ PRIORITY 2: Direct answer from semantic OR normal RAG - both get LLM formatting
+    # ✅ PRIORITY 2: Direct answer from semantic (no prior RAG streaming) — full reformat
     if state.clarification_message and not state.awaiting_clarification:
-        print("📝 Formatting direct answer from semantic node")
+        print("📝 Formatting direct answer from semantic node (full reformat)")
         rag_final_answer = state.clarification_message
         confidence = 1.0
+        prompt = build_formatter_prompt(user_query, rag_final_answer, confidence)
+        print(f"\n📝 Direct answer to format ({len(rag_final_answer)} chars)")
+        print(f"🔹 Confidence: {confidence:.2f}")
     else:
+        # RAG already streamed its full answer live — only append charts, no repeat text
         rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
         confidence = state.evaluation.confidence_score if state.evaluation else 0.8
-
-    # PRIORITY 3: Normal RAG formatting
-
-    print(f"\n📝 RAG's answer to format ({len(rag_final_answer)} chars)")
-    print(f"🔹 Confidence: {confidence:.2f}")
-
-    prompt = build_formatter_prompt(user_query, rag_final_answer, confidence)
+        prompt = build_chart_only_prompt(user_query, rag_final_answer)
+        print(f"\n📊 Chart-only formatter ({len(rag_final_answer)} chars RAG input)")
+        print(f"🔹 Confidence: {confidence:.2f}")
 
     # Plain invoke (not with_structured_output) so tokens are emitted as
     # content chunks and captured by graph.astream_events() for live streaming.
