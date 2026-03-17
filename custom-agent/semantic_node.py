@@ -115,6 +115,8 @@ def semantic_node(state: PipelineState, config: RunnableConfig = None) -> Dict[s
             "intent_type": "document_listing",
         }
 
+    unified: UnifiedSemanticOutput | None = None
+
     if awaiting_clarification and previous_ambiguity:
         print("\n" + "-" * 70)
         print("🔄 CLARIFICATION RESPONSE DETECTED")
@@ -288,7 +290,7 @@ ambiguity_detected, reasoning, task_type, document_category, product_category.""
     # This works for ALL intents and ALL query types (filename or general).
     # ========================================================================
     _allowed_cats = _rules.get("search_categories")  # None = unrestricted
-    _detected_cat = unified.product_category          # e.g. "Household Insecticides" or None
+    _detected_cat = unified.product_category if unified is not None else None
 
     if _allowed_cats and _detected_cat and _detected_cat not in _allowed_cats:
         print(f"\n🔒 ACCESS GATE: detected '{_detected_cat}' — not in allowed {_allowed_cats}. Blocking.")
