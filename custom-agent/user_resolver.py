@@ -19,7 +19,7 @@ def _get_collection():
         from pymongo.errors import ConnectionFailure
         try:
             _client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000)
-            db_name = MONGO_URI.rstrip("/").rsplit("/", 1)[-1] or "LibreChat"
+            db_name = MONGO_URI.rstrip("/").rsplit("/", 1)[-1].split("?")[0] or "LibreChat"
             _db = _client[db_name]
         except ConnectionFailure as e:
             print(f"⚠️  MongoDB connection failed: {e}")
