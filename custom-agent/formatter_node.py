@@ -27,7 +27,7 @@ The following answer has ALREADY been displayed to the user word-by-word:
 {rag_answer}
 ---
 
-TASK: Analyse what the user is asking to visualise, then generate ONLY the 1–2 charts that best answer their specific request.
+TASK: Analyse what the user is asking to visualise, then generate ONLY the charts that best answer their specific request.
 
 STEP 1 — UNDERSTAND THE USER'S INTENT:
 Think carefully:
@@ -36,7 +36,7 @@ Think carefully:
 - Identify the single most important dataset in the RAG answer that directly answers the user's visualisation request.
 - Do NOT chart every numeric value in the answer. Select only the data most relevant to the user's intent.
 
-STEP 2 — GENERATE FOCUSED CHARTS (MAXIMUM 2):
+STEP 2 — GENERATE FOCUSED CHART:
 - If the user asked for a summary → chart the top-level KPI comparison (the one headline metric that summarises the answer).
 - If the user asked for a specific metric → chart only that metric.
 - If two complementary views are genuinely needed (e.g. raw scores + percentiles), output 2 charts; otherwise output 1.
@@ -49,26 +49,63 @@ OUTPUT RULES:
 - If there is genuinely no numeric data relevant to the user's request, output nothing at all.
 
 CHART FORMAT:
-:::artifact{{type="application/vnd.mermaid" title="<descriptive title>"}}
-%%{{init: {{'theme':'base'}}}}%%
-xychart-beta
-    title "<chart title>"
-    x-axis [<quoted labels>]
-    y-axis "<axis label>" 0 --> <max>
-    bar [<values>]
-:::
+• Labels with spaces or special characters MUST use quotes: ["Label with spaces"]
+• Avoid special chars like %, +, &, $ in labels (use words instead: "16.6% growth" → ["16.6 percent growth"])
+• Use --> for arrows (not => or ->)
+• Graph types: graph TD (top-down), graph LR (left-right)
 
-CHART SYNTAX RULES:
-- Bar/line charts: use xychart-beta keyword
-- Always include: title, x-axis, y-axis, data series
-- NO special chars in labels (%, +, &, $) — spell out "percent", "dollars"
-- Y-axis range: "0 --> maxValue" (use arrows, not dashes)
-- Pie charts: use "pie title" syntax
-- Multiple series on one chart: add multiple "bar [...]" or "line [...]" rows, one per series
+CORRECT FORMAT:
+    :::artifact{{type="application/vnd.mermaid" title="Market Analysis"}}
+    graph TD
+        A["Market Overview"] --> B["Brand A"]
+        A --> C["Brand B"]
+        B --> D["Growth: 16.6 percent YoY"]
+        C --> E["Penetration: 41.6 percent"]
+    :::
+
+- BAR CHARTS (comparing metrics across categories):
+    :::artifact{{type="application/vnd.mermaid" title="Sales Comparison"}}
+    %%{{init: {{'theme':'base'}}}}%%
+    xychart-beta
+        title "Brand Sales Growth (YoY)"
+        x-axis ["GN1", "Lux", "Lifebuoy", "Dove", "Santoor"]
+        y-axis "Growth Percent" 0 --> 20
+        bar [16.6, 8.2, 12.4, 5.7, 10.1]
+    :::
+
+- LINE CHARTS (trends over time):
+    :::artifact{{type="application/vnd.mermaid" title="Market Share Trend"}}
+    %%{{init: {{'theme':'base'}}}}%%
+    xychart-beta
+        title "GN1 Market Share Trend"
+        x-axis ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+        y-axis "Market Share Percent" 0 --> 20
+        line [12.5, 13.2, 13.8, 14.5, 15.1, 16.6]
+    :::
+
+- PIE CHARTS (showing proportions):
+    :::artifact{{type="application/vnd.mermaid" title="Category Share"}}
+    %%{{init: {{'theme':'base'}}}}%%
+    pie title Market Share by Brand
+        "GN1" : 16.6
+        "Lux" : 41.6
+        "Lifebuoy" : 18.5
+        "Others" : 23.3
+    :::
+
+- MULTIPLE DATA SERIES (comparing trends):
+    :::artifact{{type="application/vnd.mermaid" title="Brand Performance"}}
+    %%{{init: {{'theme':'base'}}}}%%
+    xychart-beta
+        title "Sales vs Penetration Trends"
+        x-axis ["Q1", "Q2", "Q3", "Q4"]
+        y-axis "Percent" 0 --> 50
+        line [10, 12, 15, 16.6]
+        line [35, 38, 40, 41.6]
+    :::
 
 Output the chart artifact(s) only. Begin immediately — no preamble.
 """
-
 
 def build_formatter_prompt(user_query: str, rag_answer: str, confidence: float) -> str:
     return f"""You are a professional content formatter for an enterprise RAG system.
