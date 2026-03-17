@@ -48,24 +48,34 @@ OUTPUT RULES:
 - Output each chart wrapped in the artifact block below.
 - If there is genuinely no numeric data relevant to the user's request, output nothing at all.
 
-CHART FORMAT:
-• Labels with spaces or special characters MUST use quotes: ["Label with spaces"]
-• Avoid special chars like %, +, &, $ in labels (use words instead: "16.6% growth" → ["16.6 percent growth"])
-• Use --> for arrows (not => or ->)
-• Graph types: graph TD (top-down), graph LR (left-right)
+X-AXIS LABEL RULES (critical — prevents label overlap):
+- Keep every x-axis label SHORT: max 2 words or 12 characters.
+- If the original name is longer, use a meaningful abbreviation:
+  "Ease of Understanding" → "Understanding"
+  "Active Involvement" → "Involvement"
+  "Brand Differentiation" → "Differentiation"
+  "Adjusted Persuasion" → "Persuasion"
+  "Branding – Parent (GN1)" → "Branding Parent"
+  "Branding – Variant (S&T)" → "Branding Variant"
+  "Awareness Index – Parent" → "AI Parent"
+  "Awareness Index – Variant" → "AI Variant"
+- If there are more than 8 x-axis items, use 1-word labels or acronyms only.
+- NEVER use a full sentence as an x-axis label.
 
-CORRECT FORMAT:
-    :::artifact{{type="application/vnd.mermaid" title="Market Analysis"}}
-    graph TD
-        A["Market Overview"] --> B["Brand A"]
-        A --> C["Brand B"]
-        B --> D["Growth: 16.6 percent YoY"]
-        C --> E["Penetration: 41.6 percent"]
-    :::
+CHART FORMAT RULES:
+• Labels with special characters MUST use quotes: ["Label with spaces"]
+• Avoid special chars like %, +, &, $ in labels — spell out "percent", "dollars"
+• Y-axis range: ALWAYS start from 0 — use "0 --> maxValue"
+• Y-axis: NEVER use a non-zero minimum (no "3.5 --> 4.8")
+• Bar/line charts: use xychart-beta keyword
+• Pie charts: use "pie title" syntax
+• Multiple series on one chart: add multiple "bar [...]" or "line [...]" rows
+• Always include width in the init block to prevent label crowding:
+  %%{{init: {{'theme':'base', 'xyChart': {{'width': 900, 'height': 500}}}}}}%%
 
 - BAR CHARTS (comparing metrics across categories):
     :::artifact{{type="application/vnd.mermaid" title="Sales Comparison"}}
-    %%{{init: {{'theme':'base'}}}}%%
+    %%{{init: {{'theme':'base', 'xyChart': {{'width': 900, 'height': 500}}}}}}%%
     xychart-beta
         title "Brand Sales Growth (YoY)"
         x-axis ["GN1", "Lux", "Lifebuoy", "Dove", "Santoor"]
@@ -75,7 +85,7 @@ CORRECT FORMAT:
 
 - LINE CHARTS (trends over time):
     :::artifact{{type="application/vnd.mermaid" title="Market Share Trend"}}
-    %%{{init: {{'theme':'base'}}}}%%
+    %%{{init: {{'theme':'base', 'xyChart': {{'width': 900, 'height': 500}}}}}}%%
     xychart-beta
         title "GN1 Market Share Trend"
         x-axis ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
@@ -95,7 +105,7 @@ CORRECT FORMAT:
 
 - MULTIPLE DATA SERIES (comparing trends):
     :::artifact{{type="application/vnd.mermaid" title="Brand Performance"}}
-    %%{{init: {{'theme':'base'}}}}%%
+    %%{{init: {{'theme':'base', 'xyChart': {{'width': 900, 'height': 500}}}}}}%%
     xychart-beta
         title "Sales vs Penetration Trends"
         x-axis ["Q1", "Q2", "Q3", "Q4"]
