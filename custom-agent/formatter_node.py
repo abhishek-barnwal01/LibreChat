@@ -11,29 +11,42 @@ from utils import safe_utf8, sanitize_any, create_llm
 # app.py generate_stream (streaming). Single source of truth.
 # ---------------------------------------------------------------------------
 
-def build_chart_only_prompt(user_query: str, rag_answer: str) -> str:
+def build_chart_only_prompt(user_query: str, rag_answer: str, enriched_query: str = "") -> str:
     """
     Prompt for the RAG → formatter path.
     The RAG answer was already streamed live to the user.
-    Formatter must output ONLY the chart artifact(s) — no repeated text.
+    Formatter must analyse the user's intent and output ONLY 1-2 focused chart(s).
     """
+    enriched_section = f'\nEnriched/interpreted query: "{enriched_query}"' if enriched_query else ""
     return f"""You are a chart generator for an enterprise RAG system.
 
-The user asked: "{user_query}"
+The user asked: "{user_query}"{enriched_section}
 
 The following answer has ALREADY been displayed to the user word-by-word:
 ---
 {rag_answer}
 ---
 
-Your ONLY task: extract the numeric data from the answer above and produce Mermaid chart artifact(s) that visualise it.
+TASK: Analyse what the user is asking to visualise, then generate ONLY the 1–2 charts that best answer their specific request.
 
-RULES:
+STEP 1 — UNDERSTAND THE USER'S INTENT:
+Think carefully:
+- What specific data or metric did the user ask to chart?
+- Are they asking for a comparison (e.g. across edits/brands/periods), a summary of key KPIs, a trend over time, or a distribution?
+- Identify the single most important dataset in the RAG answer that directly answers the user's visualisation request.
+- Do NOT chart every numeric value in the answer. Select only the data most relevant to the user's intent.
+
+STEP 2 — GENERATE FOCUSED CHARTS (MAXIMUM 2):
+- If the user asked for a summary → chart the top-level KPI comparison (the one headline metric that summarises the answer).
+- If the user asked for a specific metric → chart only that metric.
+- If two complementary views are genuinely needed (e.g. raw scores + percentiles), output 2 charts; otherwise output 1.
+- Each chart must be self-contained and directly answer the user's question.
+
+OUTPUT RULES:
 - Do NOT repeat, reformat, or summarise any text from the answer.
-- Do NOT add headers, bullets, or prose — charts only.
+- Do NOT add headers, bullets, explanations, or prose — charts only.
 - Output each chart wrapped in the artifact block below.
-- You may output multiple charts if the data warrants it (e.g. KPI chart + message recall chart).
-- If there is genuinely no numeric data to chart, output nothing at all.
+- If there is genuinely no numeric data relevant to the user's request, output nothing at all.
 
 CHART FORMAT:
 :::artifact{{type="application/vnd.mermaid" title="<descriptive title>"}}
@@ -45,13 +58,13 @@ xychart-beta
     bar [<values>]
 :::
 
-RULES FOR CHART SYNTAX:
+CHART SYNTAX RULES:
 - Bar/line charts: use xychart-beta keyword
 - Always include: title, x-axis, y-axis, data series
 - NO special chars in labels (%, +, &, $) — spell out "percent", "dollars"
 - Y-axis range: "0 --> maxValue" (use arrows, not dashes)
 - Pie charts: use "pie title" syntax
-- Multiple bars/lines: add multiple "bar [...]" or "line [...]" rows
+- Multiple series on one chart: add multiple "bar [...]" or "line [...]" rows, one per series
 
 Output the chart artifact(s) only. Begin immediately — no preamble.
 """
@@ -343,7 +356,7 @@ def formatter_node(state: PipelineState) -> Dict[str, Any]:
         # RAG already streamed its full answer live — only append charts, no repeat text
         rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
         confidence = state.evaluation.confidence_score if state.evaluation else 0.8
-        prompt = build_chart_only_prompt(user_query, rag_final_answer)
+        prompt = build_chart_only_prompt(user_query, rag_final_answer, state.enriched_query or "")
         print(f"\n📊 Chart-only formatter ({len(rag_final_answer)} chars RAG input)")
         print(f"🔹 Confidence: {confidence:.2f}")
 
