@@ -177,48 +177,7 @@ async def chat_completions(request: Request):
             status_code=400,
         )
 
-    # ── Auto-title short-circuit ─────────────────────────────────────────────
-    # LibreChat sends a non-streaming POST to generate a conversation title.
-    # The user_query is a meta-prompt ("Provide a concise 5-word-or-less title
-    # for the conversation …") — it is NOT a real user question.  Running it
-    # through the full LangGraph graph causes the semantic_node to misclassify
-    # it as document_listing (because the embedded conversation text mentions
-    # the user's topic), which fires document_retriever, writes extra messages
-    # into state.messages, and corrupts all subsequent queries in the session.
-    #
-    # Fix: if the query looks like a title-generation request, answer it
-    # directly with a plain LLM call and return — no graph, no state mutation.
-    if (
-        not stream
-        and "title" in user_query.lower()
-        and "conversation" in user_query.lower()
-        and len(user_query) < 2000          # real user messages are not this structured
-    ):
-        try:
-            from utils import create_llm
-            _llm = create_llm()
-            _resp = await asyncio.to_thread(_llm.invoke, user_query)
-            title_text = (_resp.content or "New Conversation").strip()
-            return JSONResponse(
-                {
-                    "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
-                    "object": "chat.completion",
-                    "created": int(time.time()),
-                    "model": model,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "message": {"role": "assistant", "content": title_text},
-                            "finish_reason": "stop",
-                        }
-                    ],
-                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-                },
-                headers={"Content-Type": "application/json; charset=utf-8"},
-            )
-        except Exception:
-            pass  # fall through to normal graph path on any error
-    # ─────────────────────────────────────────────────────────────────────────
+    # Convert OpenAI format to LangChain format (exclude last user message)
     langchain_messages = []
     for msg in messages[:-1]:
         role = msg.get("role", "").lower()
@@ -440,7 +399,6 @@ async def generate_stream(user_query, langchain_messages, user_id, session_id, m
 async def heartbeat():
     """Basic health check endpoint."""
     return {"status": "OK", "message": "Server is running"}
-
 
 # ---------- Run Server ----------
 if __name__ == "__main__":
