@@ -48,15 +48,20 @@ OUTPUT RULES:
 - Output each chart wrapped in the artifact block below.
 - If there is genuinely no numeric data relevant to the user's request, output nothing at all.
 
-CHART SYNTAX RULES:
-- Bar/line charts: use xychart-beta keyword
-- Always include: title, x-axis, y-axis, data series
-- NO special chars in labels (%, +, &, $) — spell out "percent", "dollars"
-- Y-axis range: ALWAYS start from 0 — use "0 --> maxValue" (never use a non-zero minimum like "3.5 --> 4.8")
-- Pie charts: use "pie title" syntax
-- Multiple series on one chart: add multiple "bar [...]" or "line [...]" rows, one per series
+CHART FORMAT:
+• Labels with spaces or special characters MUST use quotes: ["Label with spaces"]
+• Avoid special chars like %, +, &, $ in labels (use words instead: "16.6% growth" → ["16.6 percent growth"])
+• Use --> for arrows (not => or ->)
+• Graph types: graph TD (top-down), graph LR (left-right)
 
-CHART FORMAT EXAMPLES:
+CORRECT FORMAT:
+    :::artifact{{type="application/vnd.mermaid" title="Market Analysis"}}
+    graph TD
+        A["Market Overview"] --> B["Brand A"]
+        A --> C["Brand B"]
+        B --> D["Growth: 16.6 percent YoY"]
+        C --> E["Penetration: 41.6 percent"]
+    :::
 
 - BAR CHARTS (comparing metrics across categories):
     :::artifact{{type="application/vnd.mermaid" title="Sales Comparison"}}
@@ -101,6 +106,7 @@ CHART FORMAT EXAMPLES:
 
 Output the chart artifact(s) only. Begin immediately — no preamble.
 """
+
 
 def build_formatter_prompt(user_query: str, rag_answer: str, confidence: float) -> str:
     return f"""You are a professional content formatter for an enterprise RAG system.
@@ -319,9 +325,6 @@ graph TD
 FORMAT THE PROVIDED ANSWER
 ==================================================
 
-⚠️ If the RAW answer above is JSON (starts with {{ or [), convert every field and nested
-value into readable prose / markdown sections. Never pass JSON through to the output.
-
 Provide your formatted response as markdown directly. Output pure markdown format without wrapping in JSON or code blocks.
 Do NOT include any preface like "Here's the polished..." or "Formatted response:". Begin directly with the content.
 Avoid meta commentary such as "Below is" or "Here is".
@@ -378,25 +381,12 @@ def formatter_node(state: PipelineState) -> Dict[str, Any]:
 
     # ✅ PRIORITY 2: Direct answer from semantic (no prior RAG streaming) — full reformat
     if state.clarification_message and not state.awaiting_clarification:
-        # Special case: user is asking for a chart as a follow-up (e.g. "now visualize that")
-        # and Turn 1's RAG answer is still in state (checkpointed). Use chart-only prompt so
-        # we don't repeat the text that was already shown in a previous turn.
-        from rag_node import _wants_chart
-        prior_rag = state.rag_output.final_answer if state.rag_output else ""
-        if _wants_chart(user_query) and prior_rag:
-            print("📊 Chart follow-up detected — using prior RAG output for chart-only generation")
-            confidence = state.evaluation.confidence_score if state.evaluation else 0.8
-            prompt = build_chart_only_prompt(user_query, prior_rag, state.enriched_query or "")
-            rag_final_answer = prior_rag
-            print(f"\n📊 Chart-only formatter from prior RAG ({len(prior_rag)} chars)")
-            print(f"🔹 Confidence: {confidence:.2f}")
-        else:
-            print("📝 Formatting direct answer from semantic node (full reformat)")
-            rag_final_answer = state.clarification_message
-            confidence = 1.0
-            prompt = build_formatter_prompt(user_query, rag_final_answer, confidence)
-            print(f"\n📝 Direct answer to format ({len(rag_final_answer)} chars)")
-            print(f"🔹 Confidence: {confidence:.2f}")
+        print("📝 Formatting direct answer from semantic node (full reformat)")
+        rag_final_answer = state.clarification_message
+        confidence = 1.0
+        prompt = build_formatter_prompt(user_query, rag_final_answer, confidence)
+        print(f"\n📝 Direct answer to format ({len(rag_final_answer)} chars)")
+        print(f"🔹 Confidence: {confidence:.2f}")
     else:
         # RAG already streamed its full answer live — only append charts, no repeat text
         rag_final_answer = state.rag_output.final_answer if state.rag_output else ""
