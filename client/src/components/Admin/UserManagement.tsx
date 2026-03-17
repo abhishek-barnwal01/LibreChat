@@ -295,7 +295,9 @@ function RolePicker({
               top: dropdownStyle.top,
               right: dropdownStyle.right,
               zIndex: 9999,
+              pointerEvents: 'auto',
             }}
+            onMouseDown={(e) => e.stopPropagation()}
             className="w-32 rounded-lg border border-border-light bg-surface-primary shadow-xl"
           >
             {ROLES.map((r) => (
