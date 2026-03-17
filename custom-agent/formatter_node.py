@@ -48,20 +48,15 @@ OUTPUT RULES:
 - Output each chart wrapped in the artifact block below.
 - If there is genuinely no numeric data relevant to the user's request, output nothing at all.
 
-CHART FORMAT:
-• Labels with spaces or special characters MUST use quotes: ["Label with spaces"]
-• Avoid special chars like %, +, &, $ in labels (use words instead: "16.6% growth" → ["16.6 percent growth"])
-• Use --> for arrows (not => or ->)
-• Graph types: graph TD (top-down), graph LR (left-right)
+CHART SYNTAX RULES:
+- Bar/line charts: use xychart-beta keyword
+- Always include: title, x-axis, y-axis, data series
+- NO special chars in labels (%, +, &, $) — spell out "percent", "dollars"
+- Y-axis range: ALWAYS start from 0 — use "0 --> maxValue" (never use a non-zero minimum like "3.5 --> 4.8")
+- Pie charts: use "pie title" syntax
+- Multiple series on one chart: add multiple "bar [...]" or "line [...]" rows, one per series
 
-CORRECT FORMAT:
-    :::artifact{{type="application/vnd.mermaid" title="Market Analysis"}}
-    graph TD
-        A["Market Overview"] --> B["Brand A"]
-        A --> C["Brand B"]
-        B --> D["Growth: 16.6 percent YoY"]
-        C --> E["Penetration: 41.6 percent"]
-    :::
+CHART FORMAT EXAMPLES:
 
 - BAR CHARTS (comparing metrics across categories):
     :::artifact{{type="application/vnd.mermaid" title="Sales Comparison"}}
