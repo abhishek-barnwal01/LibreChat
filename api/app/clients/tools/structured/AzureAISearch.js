@@ -2,6 +2,8 @@ const { z } = require('zod');
 const { Tool } = require('@langchain/core/tools');
 const { logger } = require('@librechat/data-schemas');
 const { SearchClient, AzureKeyCredential } = require('@azure/search-documents');
+const { buildMandatoryAzureFilter } = require('~/server/services/DataAccessService');
+const { findUser } = require('~/models');
 
 class AzureAISearch extends Tool {
   // Constants for default values
@@ -68,7 +70,7 @@ PARAMETERS:
 - facets: Array of facetable fields ["document_title", "text_document_id", "file_category_ai", "content_path", etc.]
 - skip: Number of results to skip for pagination (default: 0)
 - selectFields: Comma-separated fields to return (e.g., "document_title,text_document_id")
-  IMPORTANT: When you need to READ/ANALYZE the actual page content, you MUST include "content_text" and "content_embedding" in selectFields (e.g., "content_text,content_embedding,document_title,content_path,locationMetadata/pageNumber").
+  IMPORTANT: When you need to READ/ANALYZE the actual page content, you MUST include "content_text" in selectFields (e.g., "content_text,document_title,content_path,locationMetadata/pageNumber").
   If you omit "content_text", you will only get metadata (titles, paths, page numbers) but NOT the actual text content of the document.
   - For LISTING documents: selectFields: "document_title,content_path" (no content_text needed)
 
@@ -119,10 +121,10 @@ EXAMPLES:
 
 ✓ Content search: { query: "Godrej growth 2022" } - NO facets (returns all fields including content_text)
 
-✓ Content search with selectFields: { query: "Godrej growth 2022", selectFields: "content_text,content_embedding,document_title,content_path,locationMetadata/pageNumber" }
+✓ Content search with selectFields: { query: "Godrej growth 2022", selectFields: "content_text,document_title,content_path,locationMetadata/pageNumber" }
   → MUST include "content_text" to get actual text content
 
-✗ Wrong (missing content text): { query: "recommend", filter: "document_title eq 'Report.pdf'", selectFields: "document_title,content_path,content_embedding,locationMetadata/pageNumber" }
+✗ Wrong (missing content text): { query: "recommend", filter: "document_title eq 'Report.pdf'", selectFields: "document_title,content_path,locationMetadata/pageNumber" }
   → Returns page numbers but NO text content - cannot analyze what the page says!
 
 ✓ Page 6 of doc: { query: "*", filter: "locationMetadata/pageNumber eq 6 and document_title eq 'Presentation.pptx'" }
@@ -139,6 +141,7 @@ EXAMPLES:
 
     /* Used to initialize the Tool without necessary variables. */
     this.override = fields.override ?? false;
+    this.userId = fields.userId ?? null;
 
     // Define schema
     this.schema = z.object({
@@ -146,7 +149,7 @@ EXAMPLES:
       filter: z.string().optional().describe('OData filter expression (e.g., "file_category_ai eq \'U&A\'"'),
       facets: z.array(z.string()).optional().describe('Array of facetable field names to get counts/aggregations'),
       skip: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
-      selectFields: z.string().optional().describe('Comma-separated fields to return. MUST include "content_text" and "content_embedding" when reading content (e.g., "content_text,,document_title,content_path,locationMetadata/pageNumber"). Omit "content_text" and "content_embedding" only for listing/counting queries.'),
+      selectFields: z.string().optional().describe('Comma-separated fields to return. MUST include "content_text" when reading content (e.g., "content_text,,document_title,content_path,locationMetadata/pageNumber"). Omit "content_text" only for listing/counting queries.'),
     });
 
     // Initialize properties using helper function
@@ -253,7 +256,24 @@ EXAMPLES:
       } else if (this.select) {
         searchOption.select = this.select.split(',');
       }
-      if (filter) {
+
+      // Build mandatory data-access filter for the requesting user
+      let mandatoryFilter = null;
+      if (this.userId) {
+        try {
+          const userDoc = await findUser({ _id: this.userId }, 'dataAccess');
+          mandatoryFilter = buildMandatoryAzureFilter(userDoc);
+        } catch (err) {
+          logger.warn('[AzureAISearch] Could not load user dataAccess filter:', err.message);
+        }
+      }
+
+      // AND-combine mandatory filter with any LLM-provided filter so the LLM cannot bypass it
+      if (mandatoryFilter && filter) {
+        searchOption.filter = `(${mandatoryFilter}) and (${filter})`;
+      } else if (mandatoryFilter) {
+        searchOption.filter = mandatoryFilter;
+      } else if (filter) {
         searchOption.filter = filter;
       }
       if (facets && Array.isArray(facets) && facets.length > 0) {
@@ -267,6 +287,7 @@ EXAMPLES:
 
       // Build enhanced response
       const response = {
+        appliedFilter: searchOption.filter || null,
         documents: [],
         totalCount: 0,
         returnedCount: 0,

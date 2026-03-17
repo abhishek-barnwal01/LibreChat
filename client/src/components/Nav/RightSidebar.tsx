@@ -40,7 +40,7 @@ const RightSidebar = memo(({ onPromptClick }: RightSidebarProps) => {
     defaultValues: { text: '' },
   });
 
-  const [isAgentBuilderExpanded, setIsAgentBuilderExpanded] = useState(true);
+  const [isAgentBuilderExpanded, setIsAgentBuilderExpanded] = useState(false);
 
   // Get conversation ID from route if available
   const { conversationId } = useParams();

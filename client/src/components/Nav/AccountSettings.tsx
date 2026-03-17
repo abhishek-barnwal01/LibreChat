@@ -2,8 +2,10 @@ import { useState, memo } from 'react';
 import { useRecoilState } from 'recoil';
 import * as Select from '@ariakit/react/select';
 import { FileText, LogOut } from 'lucide-react';
+import { SystemRoles } from 'librechat-data-provider';
 import { LinkIcon, GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
 import { useGetStartupConfig, useGetUserBalance } from '~/data-provider';
+import UserManagement from '~/components/Admin/UserManagement';
 import FilesView from '~/components/Chat/Input/Files/FilesView';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { useLocalize } from '~/hooks';
@@ -78,6 +80,11 @@ function AccountSettings() {
             {localize('com_nav_help_faq')}
           </Select.SelectItem>
         )} */}
+        {user?.role === SystemRoles.ADMIN && (
+          <Select.SelectItem value="" className="select-item p-0 text-sm">
+            <UserManagement />
+          </Select.SelectItem>
+        )}
         <Select.SelectItem
           value=""
           onClick={() => setShowSettings(true)}
