@@ -24,7 +24,6 @@ const DATABRICKS_FILTER_COLUMNS = [
   'product_category_det',
   'country_det',
   'brand_det',
-  'file_time_period_det',
 ];
 
 // In-memory cache for Databricks filter options

@@ -64,7 +64,6 @@ const DATABRICKS_FILTER_KEYS = new Set([
   'product_category_det',
   'country_det',
   'brand_det',
-  'file_time_period_det',
 ]);
 
 /** Check if a metadata value should be excluded from filter options */
