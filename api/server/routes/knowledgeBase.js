@@ -39,6 +39,18 @@ function buildListUrl(prefix) {
 }
 
 /**
+ * Decode standard XML entities back to their literal characters.
+ */
+function decodeXmlEntities(str) {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"');
+}
+
+/**
  * Parse Azure Blob Storage XML response into structured documents with metadata.
  */
 function parseXmlBlobs(xmlText) {
@@ -55,7 +67,7 @@ function parseXmlBlobs(xmlText) {
     };
 
     const nameMatch = blobXml.match(/<Name>([\s\S]*?)<\/Name>/);
-    const name = nameMatch ? nameMatch[1] : '';
+    const name = nameMatch ? decodeXmlEntities(nameMatch[1]) : '';
 
     const propsMatch = blobXml.match(/<Properties>([\s\S]*?)<\/Properties>/);
     const propsXml = propsMatch ? propsMatch[1] : '';
@@ -73,7 +85,7 @@ function parseXmlBlobs(xmlText) {
       const metaTagRegex = /<([^/\s>]+)>([\s\S]*?)<\/\1>/g;
       let metaMatch;
       while ((metaMatch = metaTagRegex.exec(metaXml)) !== null) {
-        metadata[metaMatch[1]] = metaMatch[2];
+        metadata[metaMatch[1]] = decodeXmlEntities(metaMatch[2]);
       }
     }
 

@@ -83,15 +83,51 @@ const splitMetadataValue = (value: string): string[] => {
 };
 
 /**
- * Check if a document's metadata value for a Databricks key matches
- * any of the selected filter values (contains/segment matching).
+ * Map from _det key to corresponding _ai key for fallback matching.
+ * Databricks dropdown values may match the _ai field when the _det value differs.
  */
-const matchesDatabricksFilter = (docValue: string | undefined, selectedValues: string[]): boolean => {
-  if (!docValue) {
+const DET_TO_AI_KEY: Record<string, string> = {
+  file_category_det: 'file_category_ai',
+  product_category_det: 'product_category_ai',
+  brand_det: 'brand_ai',
+  country_det: 'country_ai',
+};
+
+/**
+ * Check if a metadata value matches any of the selected filter values
+ * by splitting compound values and comparing segments.
+ */
+const matchesMetadataValue = (value: string | undefined, selectedValues: string[]): boolean => {
+  if (!value) {
     return false;
   }
-  const segments = splitMetadataValue(docValue);
+  const segments = splitMetadataValue(value);
   return segments.some((seg) => selectedValues.includes(seg));
+};
+
+/**
+ * Check if a document's metadata value for a Databricks key matches
+ * any of the selected filter values (contains/segment matching).
+ * Falls back to the corresponding _ai field if the _det field doesn't match.
+ */
+const matchesDatabricksFilter = (
+  metadata: Record<string, string> | undefined,
+  filterKey: string,
+  selectedValues: string[],
+): boolean => {
+  if (!metadata) {
+    return false;
+  }
+  // First try the _det field
+  if (matchesMetadataValue(metadata[filterKey], selectedValues)) {
+    return true;
+  }
+  // Fallback to the corresponding _ai field
+  const aiKey = DET_TO_AI_KEY[filterKey];
+  if (aiKey) {
+    return matchesMetadataValue(metadata[aiKey], selectedValues);
+  }
+  return false;
 };
 
 /* ------------------------------------------------------------------ */
@@ -255,7 +291,7 @@ const KnowledgeBase = memo(({ onClose }: KnowledgeBaseProps) => {
     (docs: BlobDocument[], filterKey: string, values: string[]) => {
       if (DATABRICKS_FILTER_KEYS.has(filterKey)) {
         // Contains matching: split compound blob values and check segments
-        return docs.filter((doc) => matchesDatabricksFilter(doc.metadata?.[filterKey], values));
+        return docs.filter((doc) => matchesDatabricksFilter(doc.metadata, filterKey, values));
       }
       // Exact matching for non-Databricks keys
       return docs.filter((doc) => {
